@@ -40,6 +40,10 @@ import { BarkContent } from "@/components/bark/bark-content";
 import { TopicPicker } from "@/components/bark/bark-topics";
 import { QuotedBarkCard } from "@/components/bark/quoted-bark-card";
 import {
+  CreatorClaimBadge,
+  creatorClaimState,
+} from "@/components/creators/creator-claim-badge";
+import {
   MentionField,
   type MentionFieldHandle,
 } from "@/components/comments/mention-field";
@@ -987,7 +991,7 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
                     creator?.hasTeaBarksProfile
                       ? "border-agree/40 bg-agree/5"
                       : isUnclaimedProfile
-                        ? "border-primary/40 bg-primary/5"
+                        ? "border-disagree/40 bg-disagree/5"
                         : "border-mixed/40 bg-mixed/5"
                   )}
                 >
@@ -995,18 +999,34 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
                     <UserCheck className="mt-0.5 size-4 text-agree" aria-hidden />
                   ) : (
                     <UserPlus
-                      className="mt-0.5 size-4 text-mixed-foreground dark:text-mixed"
+                      className={cn(
+                        "mt-0.5 size-4",
+                        isUnclaimedProfile
+                          ? "text-disagree"
+                          : "text-mixed-foreground dark:text-mixed"
+                      )}
                       aria-hidden
                     />
                   )}
-                  <div>
-                    <p className="text-sm font-medium">
-                      {creator?.hasTeaBarksProfile
-                        ? "Existing TypeReact profile"
-                        : isUnclaimedProfile
-                          ? "Unclaimed profile"
-                          : "New creator detected"}
-                    </p>
+                  <div className="min-w-0 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium">
+                        {creator?.hasTeaBarksProfile
+                          ? "Existing TypeReact profile"
+                          : isUnclaimedProfile
+                            ? "Unclaimed profile"
+                            : "New creator detected"}
+                      </p>
+                      {creator || isUnclaimedProfile ? (
+                        <CreatorClaimBadge
+                          state={
+                            creator
+                              ? creatorClaimState(creator)
+                              : "unclaimed"
+                          }
+                        />
+                      ) : null}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {creator?.hasTeaBarksProfile
                         ? `${creator.name} is on TypeReact and responds to ${creator.responseRate}% of discussions.`

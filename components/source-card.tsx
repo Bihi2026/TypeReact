@@ -2,15 +2,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Eye, MessageSquare, Scale } from "lucide-react";
 import { EvidenceRating } from "@/components/evidence-rating";
+import { CreatorClaimBadge } from "@/components/creators/creator-claim-badge";
 import { PersonAvatar } from "@/components/person-avatar";
 import { ViewOriginalSourceLink } from "@/components/sources/view-original-source-link";
 import { SourceActionBar } from "@/components/sources/source-action-bar";
 import { SourceThumb } from "@/components/source-thumb";
 import { VerifiedBadge } from "@/components/verified-badge";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getCreator } from "@/lib/data";
-import { BRAND_NAME } from "@/lib/brand";
 import { formatNumber } from "@/lib/format";
 import { platformMeta } from "@/lib/meta";
 import type { Source } from "@/lib/types";
@@ -51,28 +50,7 @@ function CreatorStatusBadge({
 }: {
   status: "unclaimed" | "claimed" | "pending";
 }) {
-  if (status === "unclaimed") {
-    return (
-      <Badge
-        variant="secondary"
-        className="shrink-0 text-[10px] uppercase tracking-wide"
-      >
-        Unclaimed
-      </Badge>
-    );
-  }
-  if (status === "pending") {
-    return (
-      <Badge variant="secondary" className="shrink-0 text-[10px]">
-        Pending
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="secondary" className="shrink-0 text-[10px]">
-      On {BRAND_NAME}
-    </Badge>
-  );
+  return <CreatorClaimBadge state={status} className="shrink-0" />;
 }
 
 export function SourceCard({

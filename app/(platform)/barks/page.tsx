@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { listPublicBarks } from "@/app/actions/barks";
 import { BarksList } from "@/components/barks/barks-list";
+import { sortBarksByPublishedAt } from "@/lib/barks/query";
 
 export const metadata: Metadata = {
   title: "Reactions",
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function BarksPage() {
-  const barks = await listPublicBarks();
+  const barks = sortBarksByPublishedAt(await listPublicBarks());
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">

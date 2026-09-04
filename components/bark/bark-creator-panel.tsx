@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { MessageSquareText } from "lucide-react";
+import {
+  CreatorClaimBadge,
+  creatorClaimState,
+} from "@/components/creators/creator-claim-badge";
 import { PersonAvatar } from "@/components/person-avatar";
 import { VerifiedBadge } from "@/components/verified-badge";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BRAND_NAME, REACTION_PLURAL } from "@/lib/brand";
+import { REACTION_PLURAL } from "@/lib/brand";
 import { formatNumber } from "@/lib/format";
 import type { Creator } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -14,8 +17,8 @@ export function BarkCreatorPanel({ creator }: { creator: Creator }) {
   const handleLabel = creator.externalHandle
     ? `@${creator.externalHandle}`
     : `@${creator.handle}`;
-  const isUnclaimed =
-    creator.status === "unclaimed" || !creator.hasTeaBarksProfile;
+  const claimState = creatorClaimState(creator);
+  const isUnclaimed = claimState === "unclaimed";
 
   return (
     <Card className="gap-0 p-0">
@@ -44,22 +47,7 @@ export function BarkCreatorPanel({ creator }: { creator: Creator }) {
               {handleLabel}
             </p>
             <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {isUnclaimed ? (
-                <Badge
-                  variant="secondary"
-                  className="text-[10px] uppercase tracking-wide"
-                >
-                  Unclaimed
-                </Badge>
-              ) : creator.status === "pending" ? (
-                <Badge variant="secondary" className="text-[10px]">
-                  Pending
-                </Badge>
-              ) : creator.hasTeaBarksProfile ? (
-                <Badge variant="secondary" className="text-[10px]">
-                  On {BRAND_NAME}
-                </Badge>
-              ) : null}
+              <CreatorClaimBadge state={claimState} />
             </div>
           </div>
         </div>
@@ -86,15 +74,14 @@ export function BarkCreatorPanel({ creator }: { creator: Creator }) {
           </div>
         </div>
 
-        {creator.hasTeaBarksProfile || creator.status !== "unclaimed" ? (
-          <Button asChild className="w-full" size="sm">
-            <Link href={`/creators/${creator.handle}`}>View profile</Link>
-          </Button>
-        ) : (
-          <Button asChild variant="outline" className="w-full" size="sm">
-            <Link href={`/creators/${creator.handle}`}>View profile</Link>
-          </Button>
-        )}
+        <Button
+          asChild
+          className="w-full"
+          size="sm"
+          variant={isUnclaimed ? "outline" : "default"}
+        >
+          <Link href={`/creators/${creator.handle}`}>View profile</Link>
+        </Button>
       </div>
     </Card>
   );

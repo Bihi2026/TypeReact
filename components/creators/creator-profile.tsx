@@ -25,6 +25,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
+  CreatorClaimBadge,
+  creatorClaimState,
+} from "@/components/creators/creator-claim-badge";
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -138,21 +142,7 @@ export function CreatorProfile({
                       {creator.name}
                     </h1>
                     {creator.verified && <VerifiedBadge className="size-5" />}
-                    {creator.hasTeaBarksProfile ? (
-                      <Badge
-                        variant="outline"
-                        className="border-agree/30 bg-agree/10 text-agree"
-                      >
-                        Active on TypeReact
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="uppercase tracking-wide"
-                      >
-                        Unclaimed
-                      </Badge>
-                    )}
+                    <CreatorClaimBadge state={creatorClaimState(creator)} />
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {handleLabel}

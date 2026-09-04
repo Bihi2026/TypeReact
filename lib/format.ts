@@ -1,5 +1,3 @@
-const NOW = new Date("2026-08-06T12:00:00");
-
 export function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
@@ -17,7 +15,7 @@ export function formatDate(iso: string): string {
 
 export function timeAgo(iso: string): string {
   const then = new Date(iso);
-  const seconds = Math.max(0, (NOW.getTime() - then.getTime()) / 1000);
+  const seconds = Math.max(0, (Date.now() - then.getTime()) / 1000);
   const minutes = seconds / 60;
   const hours = minutes / 60;
   const days = hours / 24;

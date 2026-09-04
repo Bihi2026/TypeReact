@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { ArrowUpRight, MessageSquareText } from "lucide-react";
+import {
+  CreatorClaimBadge,
+  creatorClaimState,
+} from "@/components/creators/creator-claim-badge";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformIcon } from "@/components/platform-icon";
 import { VerifiedBadge } from "@/components/verified-badge";
@@ -31,8 +35,7 @@ export function CreatorCard({
   const handleLabel = creator.externalHandle
     ? `@${creator.externalHandle}`
     : `@${creator.handle}`;
-  const isUnclaimed =
-    creator.status === "unclaimed" || !creator.hasTeaBarksProfile;
+  const claimState = creatorClaimState(creator);
   const primaryPlatform = creator.externalPlatform ?? creator.platforms[0];
 
   return (
@@ -59,21 +62,10 @@ export function CreatorCard({
                 {platformMeta[primaryPlatform].label}
               </Badge>
             )}
-            {isUnclaimed ? (
-              <Badge
-                variant="secondary"
-                className="border-0 bg-background/80 text-[10px] uppercase tracking-wide text-muted-foreground backdrop-blur"
-              >
-                Unclaimed
-              </Badge>
-            ) : creator.hasTeaBarksProfile ? (
-              <Badge
-                variant="secondary"
-                className="border-0 bg-background/90 text-[10px] text-foreground backdrop-blur"
-              >
-                On {BRAND_NAME}
-              </Badge>
-            ) : null}
+            <CreatorClaimBadge
+              state={claimState}
+              className="backdrop-blur"
+            />
           </div>
         </div>
 
