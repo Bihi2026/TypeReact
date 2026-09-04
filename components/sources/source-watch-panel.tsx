@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ExternalLink, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { PlatformIcon } from "@/components/platform-icon";
 import { SaveSourceButton } from "@/components/sources/save-source-button";
 import { SourceThumb } from "@/components/source-thumb";
@@ -100,14 +100,6 @@ export function SourceWatchPanel({
               sourceCreatorName={creatorName}
               sourceThumbnailUrl={source.thumbnailUrl}
             />
-          ) : null}
-          {source.url ? (
-            <Button asChild variant="outline" size="sm">
-              <a href={source.url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="size-3.5" aria-hidden />
-                Open on {platformLabel}
-              </a>
-            </Button>
           ) : null}
         </div>
       </div>

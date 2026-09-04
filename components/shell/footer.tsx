@@ -22,7 +22,7 @@ const columns = [
       { label: "Become a Creator", href: "/creators/apply" },
       { label: "Learning Center", href: "/learn" },
       { label: "Countries", href: "/countries" },
-      { label: "Organizations", href: "/org" },
+      // { label: "Organizations", href: "/org" },
     ],
   },
   {
