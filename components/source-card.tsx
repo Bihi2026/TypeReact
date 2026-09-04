@@ -14,6 +14,7 @@ import { formatNumber } from "@/lib/format";
 import { platformMeta } from "@/lib/meta";
 import type { Source } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Badge } from "./ui/badge";
 
 function SourceLink({
   href,
