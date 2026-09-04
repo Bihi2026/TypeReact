@@ -19,11 +19,14 @@ export function SourceActionBar({
   url,
   platform,
   discussionCode,
+  showWatch = true,
   className,
 }: {
   url: string;
   platform: SourcePlatform;
   discussionCode?: string;
+  /** When false, only Copy (+ Read discussion) are shown. */
+  showWatch?: boolean;
   className?: string;
 }) {
   const isVideo = VIDEO_PLATFORMS.has(platform);
@@ -40,17 +43,24 @@ export function SourceActionBar({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <div className="grid grid-cols-2 gap-2">
-        <Button asChild size="sm" variant="secondary" className="h-9 min-w-0 px-2">
-          <a href={url} target="_blank" rel="noopener noreferrer">
-            {isVideo ? (
-              <Play className="size-3.5 shrink-0" aria-hidden />
-            ) : (
-              <Link2 className="size-3.5 shrink-0" aria-hidden />
-            )}
-            <span className="truncate">{watchLabel}</span>
-          </a>
-        </Button>
+      <div
+        className={cn(
+          "grid gap-2",
+          showWatch ? "grid-cols-2" : "grid-cols-1"
+        )}
+      >
+        {showWatch ? (
+          <Button asChild size="sm" variant="secondary" className="h-9 min-w-0 px-2">
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              {isVideo ? (
+                <Play className="size-3.5 shrink-0" aria-hidden />
+              ) : (
+                <Link2 className="size-3.5 shrink-0" aria-hidden />
+              )}
+              <span className="truncate">{watchLabel}</span>
+            </a>
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"

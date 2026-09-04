@@ -25,6 +25,7 @@ import { EvidenceCard } from "@/components/evidence-card";
 import { PersonAvatar } from "@/components/person-avatar";
 import { PlatformIcon } from "@/components/platform-icon";
 import { CaseFollowButton } from "@/components/cases/case-follow-button";
+import { CaseVisitDigestBanner } from "@/components/cases/case-visit-digest-banner";
 import { StartMessageButton } from "@/components/messages/start-message-button";
 import { SaveCaseButton } from "@/components/cases/save-case-button";
 import { ReportButton } from "@/components/report-dialog";
@@ -206,6 +207,10 @@ export function CaseFile({
         </BreadcrumbList>
       </Breadcrumb>
 
+      <div className="mb-4">
+        <CaseVisitDigestBanner code={c.code} />
+      </div>
+
       <header className="rounded-lg border bg-card">
         <div className="border-b bg-muted/40 px-5 py-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -306,6 +311,11 @@ export function CaseFile({
               code={c.code}
               initialFollowers={c.followers}
             />
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/circles?case=${encodeURIComponent(c.code)}`}>
+                Start research circle
+              </Link>
+            </Button>
             {c.live ? (
               <StartMessageButton
                 kind="case"

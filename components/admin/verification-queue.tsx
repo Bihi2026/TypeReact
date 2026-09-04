@@ -37,6 +37,78 @@ function basisLabel(row: {
     : "Verification code in bio";
 }
 
+function PendingApplicationRow({
+  row,
+  onAct,
+}: {
+  row: {
+    _id: Id<"creators">;
+    name: string;
+    applicationCode: string;
+    createdAt: number;
+    verificationMethod: "connect" | "code";
+    platforms: SourcePlatform[];
+  };
+  onAct: (creatorId: Id<"creators">, action: "approve" | "reject") => void;
+}) {
+  const verification = useQuery(api.creatorVerifications.getByCreatorId, {
+    creatorId: row._id,
+  });
+
+  return (
+    <Card className="flex-row items-start gap-4 p-4">
+      <PersonAvatar id={row._id} name={row.name} className="size-10" />
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="font-medium">
+          {row.name}{" "}
+          <span className="font-mono text-xs font-normal text-muted-foreground">
+            {row.applicationCode}
+          </span>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Creator application · {basisLabel(row)} · waiting{" "}
+          {waitingLabel(row.createdAt)}
+        </p>
+        {verification && (
+          <div className="mt-2 space-y-0.5 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
+            <p>
+              <span className="font-medium text-foreground">TR ID:</span>{" "}
+              <span className="font-mono">{verification.verificationId}</span>
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Legal name:</span>{" "}
+              {verification.legalName}
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Contacts:</span>{" "}
+              {verification.emergencyContacts.length} emergency ·{" "}
+              {verification.email}
+            </p>
+            {verification.proofPostUrl ? (
+              <p className="truncate">
+                <span className="font-medium text-foreground">Proof:</span>{" "}
+                {verification.proofPostUrl}
+              </p>
+            ) : null}
+          </div>
+        )}
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <Button size="sm" onClick={() => onAct(row._id, "approve")}>
+          <BadgeCheck className="size-3.5" /> Approve
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onAct(row._id, "reject")}
+        >
+          <X className="size-3.5" /> Reject
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 export function VerificationQueue() {
   const { isAuthenticated } = useConvexAuth();
   const pending = useQuery(
@@ -84,33 +156,7 @@ export function VerificationQueue() {
   return (
     <div className="space-y-3">
       {pending.map((row) => (
-        <Card key={row._id} className="flex-row items-center gap-4 p-4">
-          <PersonAvatar id={row._id} name={row.name} className="size-10" />
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">
-              {row.name}{" "}
-              <span className="font-mono text-xs font-normal text-muted-foreground">
-                {row.applicationCode}
-              </span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Creator application · {basisLabel(row)} · waiting{" "}
-              {waitingLabel(row.createdAt)}
-            </p>
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <Button size="sm" onClick={() => act(row._id, "approve")}>
-              <BadgeCheck className="size-3.5" /> Approve
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => act(row._id, "reject")}
-            >
-              <X className="size-3.5" /> Reject
-            </Button>
-          </div>
-        </Card>
+        <PendingApplicationRow key={row._id} row={row} onAct={act} />
       ))}
     </div>
   );

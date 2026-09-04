@@ -19,6 +19,13 @@ export type ApplyAsCreatorInput = {
   platforms: SourcePlatform[];
   officialLinks: { label: string; url: string }[];
   verificationMethod: "connect" | "code";
+  claimCreatorId?: string;
+  legalName: string;
+  email: string;
+  phone: string;
+  proofPostUrl?: string;
+  emergencyContacts: { name: string; phone: string; relationship: string }[];
+  verificationIdHint?: string;
 };
 
 async function findUnclaimedUpgradeId(
@@ -46,16 +53,45 @@ async function findUnclaimedUpgradeId(
 
 export async function applyAsCreator(
   input: ApplyAsCreatorInput
-): Promise<{ applicationCode: string }> {
+): Promise<{ applicationCode: string; verificationId?: string }> {
   const token = await getConvexClerkToken("apply as a creator");
-  const upgradeCreatorId = await findUnclaimedUpgradeId(
-    input.officialLinks,
-    input.platforms
-  );
+  let upgradeCreatorId: Id<"creators"> | undefined = input.claimCreatorId
+    ? (input.claimCreatorId as Id<"creators">)
+    : undefined;
+  if (!upgradeCreatorId) {
+    upgradeCreatorId = await findUnclaimedUpgradeId(
+      input.officialLinks,
+      input.platforms
+    );
+  }
+  if (upgradeCreatorId) {
+    const eligibility = await fetchQuery(
+      api.creators.canClaimCreator,
+      { creatorId: upgradeCreatorId },
+      { token }
+    );
+    if (!eligibility.allowed) {
+      throw new Error(
+        eligibility.reason ?? "You cannot claim this creator profile"
+      );
+    }
+  }
   return await fetchMutation(
     api.creators.apply,
     {
-      ...input,
+      name: input.name,
+      bio: input.bio,
+      country: input.country,
+      category: input.category,
+      platforms: input.platforms,
+      officialLinks: input.officialLinks,
+      verificationMethod: input.verificationMethod,
+      legalName: input.legalName,
+      email: input.email,
+      phone: input.phone,
+      proofPostUrl: input.proofPostUrl,
+      emergencyContacts: input.emergencyContacts,
+      verificationIdHint: input.verificationIdHint,
       ...(upgradeCreatorId ? { upgradeCreatorId } : {}),
     },
     { token }
@@ -100,6 +136,7 @@ export async function ensureUnclaimedCreatorAction(input: {
   url: string;
   platform: SourcePlatform;
   authorName?: string;
+  profileImageUrl?: string;
 }): Promise<Creator | null> {
   const identity = resolveExternalIdentity(input);
   if (!identity) return null;
@@ -115,6 +152,7 @@ export async function ensureUnclaimedCreatorAction(input: {
       displayName: identity.displayName,
       sourceUrl: input.url,
       channelUrl,
+      profileImageUrl: input.profileImageUrl,
     },
     { token }
   );

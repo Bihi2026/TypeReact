@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { query, type QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { clerkUserId } from "./lib/auth";
 import { slugifyMentionHandle } from "./lib/notify";
 
 const mentionHit = v.object({
@@ -64,10 +66,41 @@ async function profileHandle(
   return null;
 }
 
+async function circleMemberHit(
+  ctx: QueryCtx,
+  clerkId: string
+): Promise<MentionHit | null> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
+    .unique();
+  const name = user?.name?.trim() || "Member";
+  if (user?.username) {
+    return {
+      handle: user.username,
+      name,
+      kind: "member",
+      href: `/profile/${user.username}`,
+    };
+  }
+  const profile = await profileHandle(ctx, clerkId);
+  if (profile) {
+    return {
+      ...profile,
+      kind: "member",
+      href: profile.href || (profile.handle ? `/profile/${profile.handle}` : ""),
+    };
+  }
+  const handle = slugifyMentionHandle(name);
+  if (!handle) return null;
+  return { handle, name, kind: "member", href: "" };
+}
+
 export const search = query({
   args: {
     prefix: v.string(),
-    barkCode: v.string(),
+    barkCode: v.optional(v.string()),
+    circleId: v.optional(v.id("researchCircles")),
   },
   returns: v.array(mentionHit),
   handler: async (ctx, args) => {
@@ -82,50 +115,83 @@ export const search = query({
       hits.push(hit);
     };
 
-    const bark = await ctx.db
-      .query("barks")
-      .withIndex("by_code", (q) => q.eq("code", args.barkCode))
-      .unique();
-    if (bark) {
-      const comments = await ctx.db
-        .query("barkComments")
-        .withIndex("by_bark_created", (q) => q.eq("barkId", bark._id))
-        .take(50);
-      const people = new Map<string, string>();
-      people.set(bark.authorClerkId, bark.authorName);
-      for (const comment of comments) {
-        if (!people.has(comment.authorClerkId)) {
-          people.set(comment.authorClerkId, comment.authorName);
-        }
-      }
-      for (const [clerkId, name] of people) {
-        const profile = await profileHandle(ctx, clerkId);
-        if (profile) {
-          push(profile);
-        } else {
-          push({
-            handle: slugifyMentionHandle(name),
-            name,
-            kind: "member",
-            href: "",
-          });
+    if (args.circleId) {
+      const identity = await ctx.auth.getUserIdentity();
+      if (identity) {
+        const me = clerkUserId(identity);
+        const membership = await ctx.db
+          .query("researchCircleMembers")
+          .withIndex("by_circle_user", (q) =>
+            q
+              .eq("circleId", args.circleId as Id<"researchCircles">)
+              .eq("clerkUserId", me)
+          )
+          .unique();
+        if (membership) {
+          const members = await ctx.db
+            .query("researchCircleMembers")
+            .withIndex("by_circle_user", (q) =>
+              q.eq("circleId", args.circleId as Id<"researchCircles">)
+            )
+            .take(40);
+          for (const member of members) {
+            if (member.clerkUserId === me) continue;
+            const hit = await circleMemberHit(ctx, member.clerkUserId);
+            if (hit) push(hit);
+            if (hits.length >= 20) break;
+          }
         }
       }
     }
 
-    const creators = await ctx.db
-      .query("creators")
-      .withIndex("by_status_createdAt", (q) => q.eq("status", "approved"))
-      .order("desc")
-      .take(50);
-    for (const creator of creators) {
-      push({
-        handle: creator.handle,
-        name: creator.name,
-        kind: "creator",
-        href: `/creators/${creator.handle}`,
-      });
-      if (hits.length >= 20) break;
+    if (args.barkCode) {
+      const bark = await ctx.db
+        .query("barks")
+        .withIndex("by_code", (q) => q.eq("code", args.barkCode!))
+        .unique();
+      if (bark) {
+        const comments = await ctx.db
+          .query("barkComments")
+          .withIndex("by_bark_created", (q) => q.eq("barkId", bark._id))
+          .take(50);
+        const people = new Map<string, string>();
+        people.set(bark.authorClerkId, bark.authorName);
+        for (const comment of comments) {
+          if (!people.has(comment.authorClerkId)) {
+            people.set(comment.authorClerkId, comment.authorName);
+          }
+        }
+        for (const [clerkId, name] of people) {
+          const profile = await profileHandle(ctx, clerkId);
+          if (profile) {
+            push(profile);
+          } else {
+            push({
+              handle: slugifyMentionHandle(name),
+              name,
+              kind: "member",
+              href: "",
+            });
+          }
+        }
+      }
+    }
+
+    if (hits.length < 20) {
+      const creators = await ctx.db
+        .query("creators")
+        .withIndex("by_status_createdAt", (q) => q.eq("status", "approved"))
+        .order("desc")
+        .take(50);
+      for (const creator of creators) {
+        push({
+          handle: creator.handle,
+          name: creator.name,
+          kind: "creator",
+          href: `/creators/${creator.handle}`,
+        });
+        if (hits.length >= 20) break;
+      }
     }
 
     if (hits.length < 20) {

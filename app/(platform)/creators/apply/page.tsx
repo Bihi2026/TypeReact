@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
-import { ApplyWizard } from "@/components/creator/apply-wizard";
+import { Suspense } from "react";
+import {
+  ApplyWizard,
+  ApplyWizardSkeleton,
+} from "@/components/creator/apply-wizard";
 
 export const metadata: Metadata = {
   title: "Become a Creator",
 };
 
 export default function CreatorApplyPage() {
-  return <ApplyWizard />;
+  return (
+    <Suspense fallback={<ApplyWizardSkeleton />}>
+      <ApplyWizard />
+    </Suspense>
+  );
 }

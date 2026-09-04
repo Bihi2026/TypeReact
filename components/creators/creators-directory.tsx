@@ -109,6 +109,14 @@ export function CreatorsDirectory({
     safePage * PAGE_SIZE,
     safePage * PAGE_SIZE + PAGE_SIZE
   );
+  const filtersActive =
+    query.trim() !== "" ||
+    topic !== ANY ||
+    platform !== ANY ||
+    status !== ANY;
+  const resultLabel = filtersActive
+    ? `${filtered.length} of ${creators.length}`
+    : `${filtered.length} creators`;
 
   if (creators.length === 0) {
     return (
@@ -138,7 +146,7 @@ export function CreatorsDirectory({
               Most discussed
             </h2>
             <Badge variant="outline" className="text-[10px]">
-              This week
+              By reactions
             </Badge>
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
@@ -150,22 +158,19 @@ export function CreatorsDirectory({
       )}
 
       <section className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold">Browse all creators</h2>
-            <p className="text-xs text-muted-foreground">
-              Filter by topic, platform, or claim status.
-            </p>
-          </div>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/creators/apply">
-              <BadgeCheck className="size-3.5" />
-              Claim or apply
-            </Link>
-          </Button>
+        <div>
+          <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+            Browse all creators
+            <Badge variant="secondary" className="tabular-nums">
+              {resultLabel}
+            </Badge>
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Filter by topic, platform, or claim status.
+          </p>
         </div>
 
-        <div className="grid gap-3 rounded-xl border bg-card p-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_repeat(4,minmax(0,1fr))]">
+        <div className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_repeat(4,minmax(0,1fr))]">
           <div className="relative sm:col-span-2 xl:col-span-1">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"

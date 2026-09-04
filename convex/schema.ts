@@ -4,7 +4,11 @@ import {
   barkDocFields,
   barkLikeFields,
   barkSaveFields,
+  barkViewFields,
+  barkVersionFields,
+  barkEvidenceVoteFields,
   barkReportFields,
+  barkTopicLinkFields,
   creatorReviewFields,
   caseDocFields,
   caseFollowFields,
@@ -12,6 +16,7 @@ import {
   caseReportFields,
   creatorDocFields,
   creatorFollowFields,
+  creatorVerificationFields,
   evidenceUploadFields,
   membershipFields,
   organizationFields,
@@ -27,6 +32,16 @@ import {
   storyReportFields,
   storyWriterFollowFields,
   sourceSaveFields,
+  saveCollectionFields,
+  evidenceRequestFields,
+  userMuteFields,
+  contentVisitFields,
+  barkCommunityNoteFields,
+  barkCommunityNoteVoteFields,
+  researchCircleFields,
+  researchCircleMemberFields,
+  researchCirclePostFields,
+  researchCircleInviteFields,
   userFollowFields,
   notificationFields,
   notificationPrefsFields,
@@ -38,6 +53,7 @@ import {
   messageFields,
   moderationEventFields,
   userSettingsFields,
+  learningResourceFields,
 } from "./lib/validators";
 
 export default defineSchema({
@@ -87,12 +103,69 @@ export default defineSchema({
     .index("by_bark", ["barkId"]),
   barkSaves: defineTable(barkSaveFields)
     .index("by_bark_user", ["barkId", "clerkUserId"])
-    .index("by_user", ["clerkUserId"]),
+    .index("by_user", ["clerkUserId"])
+    .index("by_user_collection", ["clerkUserId", "collectionId"]),
+  saveCollections: defineTable(saveCollectionFields)
+    .index("by_user", ["clerkUserId"])
+    .index("by_user_name", ["clerkUserId", "name"]),
+  barkViews: defineTable(barkViewFields).index("by_bark_viewer_day", [
+    "barkId",
+    "viewerKey",
+    "dayKey",
+  ]),
+  barkVersions: defineTable(barkVersionFields)
+    .index("by_bark_version", ["barkId", "version"])
+    .index("by_bark", ["barkId"]),
+  barkEvidenceVotes: defineTable(barkEvidenceVoteFields)
+    .index("by_bark_evidence_user", ["barkId", "evidenceIndex", "clerkUserId"])
+    .index("by_bark_evidence", ["barkId", "evidenceIndex"]),
   barkComments: defineTable(barkCommentFields).index("by_bark_created", [
     "barkId",
     "createdAt",
   ]),
   barkReports: defineTable(barkReportFields).index("by_bark", ["barkId"]),
+  barkTopicLinks: defineTable(barkTopicLinkFields)
+    .index("by_topic_status_publishedAt", ["topic", "status", "publishedAt"])
+    .index("by_bark", ["barkId"]),
+  evidenceRequests: defineTable(evidenceRequestFields)
+    .index("by_bark_status", ["barkId", "status"])
+    .index("by_bark_block_requester", [
+      "barkId",
+      "blockIndex",
+      "requesterClerkId",
+    ])
+    .index("by_requester", ["requesterClerkId"]),
+  userMutes: defineTable(userMuteFields)
+    .index("by_user", ["clerkUserId"])
+    .index("by_user_author", ["clerkUserId", "targetClerkId"])
+    .index("by_user_topic", ["clerkUserId", "topic"]),
+  contentVisits: defineTable(contentVisitFields).index(
+    "by_user_target",
+    ["clerkUserId", "targetKind", "targetCode"]
+  ),
+  barkCommunityNotes: defineTable(barkCommunityNoteFields).index(
+    "by_bark_created",
+    ["barkId", "createdAt"]
+  ),
+  barkCommunityNoteVotes: defineTable(barkCommunityNoteVoteFields).index(
+    "by_note_user",
+    ["noteId", "clerkUserId"]
+  ),
+  researchCircles: defineTable(researchCircleFields)
+    .index("by_owner", ["ownerClerkId"])
+    .index("by_anchor_case", ["caseCode"])
+    .index("by_anchor_topic", ["topic"]),
+  researchCircleMembers: defineTable(researchCircleMemberFields)
+    .index("by_circle_user", ["circleId", "clerkUserId"])
+    .index("by_user", ["clerkUserId"]),
+  researchCirclePosts: defineTable(researchCirclePostFields).index(
+    "by_circle_created",
+    ["circleId", "createdAt"]
+  ),
+  researchCircleInvites: defineTable(researchCircleInviteFields)
+    .index("by_circle_status", ["circleId", "status"])
+    .index("by_invitee_status", ["inviteeClerkId", "status"])
+    .index("by_circle_invitee", ["circleId", "inviteeClerkId"]),
   cases: defineTable(caseDocFields)
     .index("by_code", ["code"])
     .index("by_status_updatedAt", ["status", "updatedAt"])
@@ -114,6 +187,10 @@ export default defineSchema({
     .index("by_applicant", ["applicantClerkId"])
     .index("by_applicationCode", ["applicationCode"])
     .index("by_external_identity", ["externalPlatform", "externalHandle"]),
+  creatorVerifications: defineTable(creatorVerificationFields)
+    .index("by_creator", ["creatorId"])
+    .index("by_applicant", ["applicantClerkId"])
+    .index("by_verificationId", ["verificationId"]),
   creatorFollows: defineTable(creatorFollowFields)
     .index("by_creator_user", ["creatorId", "clerkUserId"])
     .index("by_user", ["clerkUserId"]),
@@ -189,4 +266,12 @@ export default defineSchema({
   userSettings: defineTable(userSettingsFields).index("by_user", [
     "clerkUserId",
   ]),
+  learningResources: defineTable(learningResourceFields)
+    .index("by_slug", ["slug"])
+    .index("by_status_sortOrder", ["status", "sortOrder"])
+    .index("by_status_category_sortOrder", [
+      "status",
+      "category",
+      "sortOrder",
+    ]),
 });

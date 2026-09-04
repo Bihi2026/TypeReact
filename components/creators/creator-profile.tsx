@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useConvexAuth, useQuery } from "convex/react";
 import {
   ArrowLeft,
   ExternalLink,
@@ -22,7 +23,6 @@ import { SourceCard } from "@/components/source-card";
 import { VerifiedBadge } from "@/components/verified-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   Tabs,
@@ -32,7 +32,10 @@ import {
 } from "@/components/ui/tabs";
 import { countries } from "@/lib/data";
 import { formatDate, formatNumber, gradientFor } from "@/lib/format";
+import { isFollowableCreator } from "@/lib/creators/followable";
 import { platformMeta } from "@/lib/meta";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import type { AccountabilityCase, Bark, Creator, Source } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +49,14 @@ function responseLabel(rate: number) {
   return { label: "Rarely responds", className: "text-disagree" };
 }
 
+function TabCount({ count }: { count: number }) {
+  return (
+    <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1 tabular-nums">
+      {count}
+    </Badge>
+  );
+}
+
 export function CreatorProfile({
   creator,
   sources,
@@ -57,12 +68,25 @@ export function CreatorProfile({
   barksAbout: Bark[];
   cases: AccountabilityCase[];
 }) {
+  const { isAuthenticated } = useConvexAuth();
   const country = countries.find((c) => c.code === creator.country);
   const response = responseLabel(creator.responseRate);
+  const handleLabel = creator.externalHandle
+    ? `@${creator.externalHandle}`
+    : `@${creator.handle}`;
+  const primaryPlatform = creator.externalPlatform ?? creator.platforms[0];
   const openCases = cases.filter(
     (c) => c.status === "open" || c.status === "under-review"
   ).length;
-  const [tab, setTab] = React.useState("library");
+  const [tab, setTab] = React.useState(() =>
+    sources.length === 0 ? "barks" : "library"
+  );
+  const claimEligibility = useQuery(
+    api.creators.canClaimCreator,
+    !creator.hasTeaBarksProfile && isAuthenticated
+      ? { creatorId: creator.id as Id<"creators"> }
+      : "skip"
+  );
 
   const barkSort = React.useMemo(
     () =>
@@ -89,14 +113,18 @@ export function CreatorProfile({
 
       <div className="mx-auto max-w-6xl px-4">
         <div className="relative -mt-14 space-y-6 sm:-mt-16">
-          <Link
-            href="/creators"
-            className="inline-flex items-center gap-1.5 text-sm text-white/90 drop-shadow-sm transition-colors hover:text-white"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden /> All creators
-          </Link>
-
           <div className="rounded-2xl border bg-card/95 p-4 shadow-sm backdrop-blur sm:p-6">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="-ml-2 mb-4 w-fit"
+              asChild
+            >
+              <Link href="/creators">
+                <ArrowLeft className="size-3.5" aria-hidden /> All creators
+              </Link>
+            </Button>
+
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start">
                 <PersonAvatar
@@ -113,19 +141,36 @@ export function CreatorProfile({
                     {creator.hasTeaBarksProfile ? (
                       <Badge
                         variant="outline"
-                        className="bg-agree/10 text-agree border-agree/30"
+                        className="border-agree/30 bg-agree/10 text-agree"
                       >
                         Active on TypeReact
                       </Badge>
                     ) : (
-                      <Badge variant="outline">Unclaimed profile</Badge>
+                      <Badge
+                        variant="outline"
+                        className="uppercase tracking-wide"
+                      >
+                        Unclaimed
+                      </Badge>
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    @{creator.handle}
+                    {handleLabel}
+                    {primaryPlatform && (
+                      <>
+                        {" · "}
+                        <PlatformIcon
+                          platform={primaryPlatform}
+                          className="mr-0.5 inline size-3.5"
+                        />
+                        {platformMeta[primaryPlatform].label}
+                      </>
+                    )}
                     {country
                       ? ` · ${country.flag} ${country.name}`
-                      : ` · ${creator.country}`}
+                      : creator.country
+                        ? ` · ${creator.country}`
+                        : ""}
                     {" · "}
                     Joined {formatDate(creator.joinedAt)}
                   </p>
@@ -154,6 +199,7 @@ export function CreatorProfile({
                 creatorId={creator.id}
                 name={creator.name}
                 handle={creator.handle}
+                followable={isFollowableCreator(creator)}
               />
             </div>
 
@@ -165,13 +211,19 @@ export function CreatorProfile({
                     Are you {creator.name}?
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Claim this profile to verify your identity and respond
-                    officially to reactions and cases.
+                    {claimEligibility?.allowed
+                      ? "Claim this profile to verify your identity and respond officially to reactions and cases."
+                      : (claimEligibility?.reason ??
+                        "Only the member who first linked this profile by publishing a reaction can start a claim. If you are this creator, publish a reaction about your content while signed in, then return here.")}
                   </p>
                 </div>
-                <Button asChild size="sm" className="shrink-0">
-                  <Link href="/creators/apply">Claim this profile</Link>
-                </Button>
+                {claimEligibility?.allowed ? (
+                  <Button asChild size="sm" className="shrink-0">
+                    <Link href={`/creators/apply?claim=${creator.id}`}>
+                      Claim this profile
+                    </Link>
+                  </Button>
+                ) : null}
               </div>
             )}
           </div>
@@ -180,14 +232,17 @@ export function CreatorProfile({
             <div className="min-w-0 space-y-6">
               <Tabs value={tab} onValueChange={setTab}>
                 <TabsList className="w-full justify-start overflow-x-auto">
-                  <TabsTrigger value="library">
-                    Library ({sources.length})
+                  <TabsTrigger value="library" className="flex-none">
+                    Library
+                    <TabCount count={sources.length} />
                   </TabsTrigger>
-                  <TabsTrigger value="barks">
-                    Reactions ({barksAbout.length})
+                  <TabsTrigger value="barks" className="flex-none">
+                    Reactions
+                    <TabCount count={barksAbout.length} />
                   </TabsTrigger>
-                  <TabsTrigger value="cases">
-                    Cases ({cases.length})
+                  <TabsTrigger value="cases" className="flex-none">
+                    Cases
+                    <TabCount count={cases.length} />
                   </TabsTrigger>
                 </TabsList>
 
@@ -197,9 +252,7 @@ export function CreatorProfile({
                       Indexed public content under discussion on TypeReact.
                     </p>
                     <Button asChild size="sm" variant="outline">
-                      <Link href="/create">
-                        React to a source
-                      </Link>
+                      <Link href="/create">React to a source</Link>
                     </Button>
                   </div>
                   {sources.length === 0 ? (
@@ -258,134 +311,134 @@ export function CreatorProfile({
             </div>
 
             <aside className="space-y-4 lg:sticky lg:top-24 lg:h-fit">
-              <Card className="gap-0 p-0">
-                <div className="space-y-4 p-4">
-                  <h2 className="text-sm font-semibold">Profile snapshot</h2>
-                  <dl className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-lg bg-muted/40 p-3">
-                      <dt className="text-xs text-muted-foreground">
-                        Followers
-                      </dt>
-                      <dd className="text-lg font-bold tabular-nums">
-                        {formatNumber(creator.followers)}
-                      </dd>
-                    </div>
-                    <div className="rounded-lg bg-muted/40 p-3">
-                      <dt className="text-xs text-muted-foreground">Sources</dt>
-                      <dd className="text-lg font-bold tabular-nums">
-                        {creator.totalSources}
-                      </dd>
-                    </div>
-                    <div className="rounded-lg bg-muted/40 p-3">
-                      <dt className="text-xs text-muted-foreground">
-                        Reactions received
-                      </dt>
-                      <dd className="text-lg font-bold tabular-nums">
-                        {formatNumber(creator.totalBarksReceived)}
-                      </dd>
-                    </div>
-                    <div className="rounded-lg bg-muted/40 p-3">
-                      <dt className="text-xs text-muted-foreground">
-                        Open cases
-                      </dt>
-                      <dd className="text-lg font-bold tabular-nums">
-                        {openCases}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                        <ShieldCheck className="size-3.5" aria-hidden />
-                        Response rate
-                      </span>
-                      <span
-                        className={cn("font-semibold tabular-nums", response.className)}
-                      >
-                        {creator.responseRate}% · {response.label}
-                      </span>
-                    </div>
-                    <Progress value={creator.responseRate} aria-label="Response rate" />
-                    <p className="text-xs text-muted-foreground">
-                      How often this creator officially replies to reactions and
-                      cases about them.
-                    </p>
+              <div className="space-y-4 rounded-xl border p-4">
+                <h2 className="text-sm font-semibold">Profile snapshot</h2>
+                <dl className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-lg bg-muted/40 p-3">
+                    <dt className="text-xs text-muted-foreground">Followers</dt>
+                    <dd className="text-lg font-bold tabular-nums">
+                      {formatNumber(creator.followers)}
+                    </dd>
                   </div>
-                </div>
-              </Card>
+                  <div className="rounded-lg bg-muted/40 p-3">
+                    <dt className="text-xs text-muted-foreground">Sources</dt>
+                    <dd className="text-lg font-bold tabular-nums">
+                      {creator.totalSources}
+                    </dd>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-3">
+                    <dt className="text-xs text-muted-foreground">
+                      Reactions received
+                    </dt>
+                    <dd className="text-lg font-bold tabular-nums">
+                      {formatNumber(creator.totalBarksReceived)}
+                    </dd>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-3">
+                    <dt className="text-xs text-muted-foreground">
+                      Official creator responses
+                    </dt>
+                    <dd className="text-lg font-bold tabular-nums">
+                      {formatNumber(creator.officialResponseCount ?? 0)}
+                    </dd>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-3">
+                    <dt className="text-xs text-muted-foreground">Open cases</dt>
+                    <dd className="text-lg font-bold tabular-nums">
+                      {openCases}
+                    </dd>
+                  </div>
+                </dl>
 
-              <Card className="gap-0 p-0">
-                <div className="space-y-3 p-4">
-                  <h2 className="text-sm font-semibold">Official links</h2>
-                  {creator.officialLinks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No official links on file.
-                    </p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {creator.officialLinks.map((link) => (
-                        <li key={link.label}>
-                          <a
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-                          >
-                            <Globe2 className="size-3.5" aria-hidden />
-                            {link.label}
-                            <ExternalLink className="size-3" aria-hidden />
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                      <ShieldCheck className="size-3.5" aria-hidden />
+                      Response rate
+                    </span>
+                    <span
+                      className={cn(
+                        "font-semibold tabular-nums",
+                        response.className
+                      )}
+                    >
+                      {creator.responseRate}% · {response.label}
+                    </span>
+                  </div>
+                  <Progress
+                    value={creator.responseRate}
+                    aria-label="Response rate"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    How often this creator officially replies to reactions and
+                    cases about them.
+                  </p>
                 </div>
-              </Card>
+              </div>
+
+              <div className="space-y-3 rounded-xl border p-4">
+                <h2 className="text-sm font-semibold">Official links</h2>
+                {creator.officialLinks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No official links on file.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {creator.officialLinks.map((link) => (
+                      <li key={link.label}>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                        >
+                          <Globe2 className="size-3.5" aria-hidden />
+                          {link.label}
+                          <ExternalLink className="size-3" aria-hidden />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
               {country && (
-                <Card className="gap-0 p-0">
-                  <div className="space-y-2 p-4">
-                    <h2 className="text-sm font-semibold">Local context</h2>
-                    <Link
-                      href={`/countries/${country.code}`}
-                      className="flex items-center gap-2 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
-                    >
-                      <span className="text-2xl" aria-hidden>
-                        {country.flag}
+                <div className="space-y-2 rounded-xl border p-4">
+                  <h2 className="text-sm font-semibold">Local context</h2>
+                  <Link
+                    href={`/countries/${country.code}`}
+                    className="flex items-center gap-2 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
+                  >
+                    <span className="text-2xl" aria-hidden>
+                      {country.flag}
+                    </span>
+                    <span>
+                      <span className="block text-sm font-medium">
+                        {country.name}
                       </span>
-                      <span>
-                        <span className="block text-sm font-medium">
-                          {country.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatNumber(country.barkCount)} local reactions
-                        </span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatNumber(country.barkCount)} local reactions
                       </span>
-                    </Link>
-                  </div>
-                </Card>
+                    </span>
+                  </Link>
+                </div>
               )}
 
-              <Card className="gap-0 border-dashed p-0">
-                <div className="space-y-2 p-4">
-                  <h2 className="text-sm font-semibold">Quick actions</h2>
-                  <div className="grid gap-2">
-                    <Button asChild variant="secondary" size="sm">
-                      <Link href="/create">
-                        Start a Reaction
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <Link
-                        href={`/search?q=${encodeURIComponent(creator.name)}&creator=${creator.id}`}
-                      >
-                        Search discussions
-                      </Link>
-                    </Button>
-                  </div>
+              <div className="space-y-2 rounded-xl border border-dashed p-4">
+                <h2 className="text-sm font-semibold">Quick actions</h2>
+                <div className="grid gap-2">
+                  <Button asChild variant="secondary" size="sm">
+                    <Link href="/create">Start a Reaction</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link
+                      href={`/search?q=${encodeURIComponent(creator.name)}&creator=${creator.id}`}
+                    >
+                      Search discussions
+                    </Link>
+                  </Button>
                 </div>
-              </Card>
+              </div>
             </aside>
           </div>
         </div>

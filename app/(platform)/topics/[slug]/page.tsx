@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FileText, Hash, Scale } from "lucide-react";
 import { BarkCard } from "@/components/bark-card";
@@ -6,10 +7,10 @@ import { CaseCard } from "@/components/case-card";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { listPublicBarks } from "@/app/actions/barks";
+import { listPublicBarksByTopic } from "@/app/actions/barks";
 import { listCaseCategoryStats, listCasesByCategory } from "@/app/actions/cases";
 import { caseCategoryMeta } from "@/lib/meta";
-import { getTopic, isCaseCategory, topics } from "@/lib/topics";
+import { getTopic, isCaseCategory } from "@/lib/topics";
 import { formatNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -27,12 +28,11 @@ export default async function TopicPage(props: PageProps<"/topics/[slug]">) {
   const topic = getTopic(slug);
   if (!topic || !isCaseCategory(slug)) notFound();
 
-  const [topicCases, publishedBarks, stats] = await Promise.all([
+  const [topicCases, topicBarks, stats] = await Promise.all([
     listCasesByCategory(slug),
-    listPublicBarks(),
+    listPublicBarksByTopic(slug),
     listCaseCategoryStats(),
   ]);
-  const topicBarks = publishedBarks.filter((b) => b.topics.includes(slug));
   const caseCount =
     stats.find((row) => row.slug === slug)?.caseCount ?? topicCases.length;
   const group = caseCategoryMeta[slug].group;
@@ -57,7 +57,14 @@ export default async function TopicPage(props: PageProps<"/topics/[slug]">) {
             {formatNumber(caseCount)} accountability cases
           </p>
         </div>
-        <Button>Follow topic</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/circles?topic=${encodeURIComponent(slug)}`}>
+              Start research circle
+            </Link>
+          </Button>
+          <Button>Follow topic</Button>
+        </div>
       </div>
 
       <section className="space-y-3">

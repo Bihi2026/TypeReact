@@ -3,11 +3,29 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MessageSquare } from "lucide-react";
 import { BarkContent } from "@/components/bark/bark-content";
+import { BarkTopics } from "@/components/bark/bark-topics";
+import { BarkCreatorPanel } from "@/components/bark/bark-creator-panel";
+import { BarkLiveViewCount } from "@/components/bark/bark-live-view-count";
+import { BarkViewRecorder } from "@/components/bark/bark-view-recorder";
+import {
+  AmendReactionForm,
+  BarkVersionHistory,
+  PromoteToCaseButton,
+  SourceDebateGraph,
+} from "@/components/bark/advanced-reaction-tools";
+import { OfficialCreatorResponse } from "@/components/bark/official-creator-response";
+import { QuotedBarkCard } from "@/components/bark/quoted-bark-card";
+import {
+  EvidenceRequestsPanel,
+} from "@/components/bark/evidence-requests";
+import { CommunityNotesSection } from "@/components/bark/community-notes";
+import { ClaimMapSection } from "@/components/bark/claim-map";
+import { VisitDigestBanner } from "@/components/bark/visit-digest-banner";
 import { BarkReadingToolbar } from "@/components/bark/bark-reading-toolbar";
 import { LikeButton } from "@/components/bark/like-button";
 import { LiveReplyThread } from "@/components/bark/live-reply-thread";
-import { ReplyThread } from "@/components/bark/reply-thread";
 import { FollowBarkAuthorButton } from "@/components/barks/follow-author-button";
+import { MuteAuthorButton } from "@/components/barks/mute-author-button";
 import { StartMessageButton } from "@/components/messages/start-message-button";
 import { BarkCode } from "@/components/bark-code";
 import { ReportButton } from "@/components/report-dialog";
@@ -18,10 +36,7 @@ import { ShareMenu } from "@/components/share-menu";
 import { EvidenceCard } from "@/components/evidence-card";
 import { EvidenceRating } from "@/components/evidence-rating";
 import { PersonAvatar } from "@/components/person-avatar";
-import { PlatformIcon } from "@/components/platform-icon";
-import { SaveSourceButton } from "@/components/sources/save-source-button";
-import { ViewOriginalSourceLink } from "@/components/sources/view-original-source-link";
-import { SourceThumb } from "@/components/source-thumb";
+import { SourceWatchPanel } from "@/components/sources/source-watch-panel";
 import { VerifiedBadge } from "@/components/verified-badge";
 import {
   Breadcrumb,
@@ -43,7 +58,6 @@ import {
 import { getBarkByCodeAction } from "@/app/actions/barks";
 import { getCreatorByIdAction } from "@/app/actions/creators";
 import { youtubeThumbnailUrl } from "@/lib/detect-source";
-import { getCreator, getSource, getUser, getBarkByCode, repliesForBark } from "@/lib/data";
 import { formatDate, formatNumber } from "@/lib/format";
 import { platformMeta } from "@/lib/meta";
 import type { Bark, EvidenceType, Source, User } from "@/lib/types";
@@ -62,7 +76,7 @@ async function resolveBark(code: string): Promise<Bark | undefined> {
   } catch (err) {
     console.error("Failed to fetch live bark:", err);
   }
-  return getBarkByCode(normalized);
+  return undefined;
 }
 
 export async function generateMetadata(
@@ -87,24 +101,21 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
   const bark = await resolveBark(code);
   if (!bark) notFound();
 
-  const author: User | undefined = getUser(bark.authorId) ??
-    (bark.authorName
-      ? {
-          id: bark.authorId,
-          username: bark.authorId,
-          name: bark.authorName,
-          bio: "",
-          verified: false,
-          country: "",
-          followers: 0,
-          following: 0,
-          barkCount: 0,
-          evidenceScore: bark.evidenceRating,
-          joinedAt: bark.publishedAt,
-        }
-      : undefined);
-  const source: Source | undefined = getSource(bark.sourceId) ??
-    (bark.sourceTitle && bark.sourcePlatform
+  const author: User = {
+    id: bark.authorId,
+    username: bark.authorId,
+    name: bark.authorName || "Member",
+    bio: "",
+    verified: false,
+    country: bark.country || "",
+    followers: 0,
+    following: 0,
+    barkCount: 0,
+    evidenceScore: bark.evidenceRating,
+    joinedAt: bark.publishedAt,
+  };
+  const source: Source | undefined =
+    bark.sourceTitle && bark.sourcePlatform
       ? {
           id: bark.sourceId,
           platform: bark.sourcePlatform,
@@ -113,7 +124,7 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
           thumbnailUrl:
             bark.sourceThumbnailUrl ??
             youtubeThumbnailUrl(bark.sourceUrl ?? ""),
-          creatorId: "",
+          creatorId: bark.sourceCreatorId ?? "",
           publishedAt: bark.publishedAt,
           category: "",
           language: "en",
@@ -123,38 +134,35 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
           engagement: 0,
           evidenceRating: bark.evidenceRating,
         }
-      : undefined);
+      : undefined;
   const creatorFromId = bark.sourceCreatorId
     ? await getCreatorByIdAction(bark.sourceCreatorId)
     : null;
   const creator =
     creatorFromId ??
-    (source
-      ? getCreator(source.creatorId) ??
-        (bark.sourceCreatorName
-          ? {
-              id: "convex-creator",
-              handle: "source",
-              name: bark.sourceCreatorName,
-              bio: "",
-              verified: false,
-              hasTeaBarksProfile: false,
-              platforms: source.platform ? [source.platform] : [],
-              officialLinks: [],
-              followers: 0,
-              country: "",
-              topics: [],
-              totalSources: 1,
-              totalBarksReceived: 0,
-              responseRate: 0,
-              joinedAt: bark.publishedAt,
-            }
-          : undefined)
+    (bark.sourceCreatorName
+      ? {
+          id: bark.sourceCreatorId ?? "source-creator",
+          handle: "source",
+          name: bark.sourceCreatorName,
+          bio: "",
+          verified: false,
+          hasTeaBarksProfile: false,
+          platforms: bark.sourcePlatform ? [bark.sourcePlatform] : [],
+          officialLinks: [],
+          followers: 0,
+          country: "",
+          topics: [],
+          totalSources: 1,
+          totalBarksReceived: 0,
+          responseRate: 0,
+          joinedAt: bark.publishedAt,
+        }
       : undefined);
-  const replies = repliesForBark(bark.id);
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl overflow-x-hidden px-4 py-8">
+      {bark.live ? <BarkViewRecorder code={bark.code} /> : null}
       <Breadcrumb className="mb-6">
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -189,6 +197,12 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
             <h1 className="min-w-0 break-words text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
               {bark.title}
             </h1>
+            <BarkTopics
+              code={bark.code}
+              initialTopics={bark.topics}
+              authorClerkId={bark.authorId}
+              live={bark.live}
+            />
             {author && (
               <div className="flex min-w-0 flex-col gap-3">
                 <Link
@@ -210,13 +224,27 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
                       {bark.updatedAt
                         ? ` · Updated ${formatDate(bark.updatedAt)}`
                         : ""}{" "}
-                      · {formatNumber(bark.views)} views
+                      ·{" "}
+                      {bark.live ? (
+                        <BarkLiveViewCount
+                          code={bark.code}
+                          initialViews={bark.views}
+                        />
+                      ) : (
+                        <>{formatNumber(bark.views)} views</>
+                      )}
                     </p>
                   </div>
                 </Link>
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   {bark.live ? (
                     <FollowBarkAuthorButton
+                      authorClerkId={bark.authorId}
+                      name={author.name}
+                    />
+                  ) : null}
+                  {bark.live ? (
+                    <MuteAuthorButton
                       authorClerkId={bark.authorId}
                       name={author.name}
                     />
@@ -242,12 +270,18 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
                   {bark.live ? (
                     <SaveBarkButton barkCode={bark.code} />
                   ) : null}
+                  {bark.live ? <PromoteToCaseButton bark={bark} /> : null}
                   <ShareMenu
                     kind="bark"
                     code={bark.code}
                     title={bark.title}
                     path={`/barks/${bark.code}`}
                   />
+                  {bark.live ? (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/create?quote=${bark.code}`}>Quote</Link>
+                    </Button>
+                  ) : null}
                   <ReportButton
                     target={`reaction ${bark.code}`}
                     barkCode={bark.live ? bark.code : undefined}
@@ -260,71 +294,45 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
             )}
           </header>
 
-          {/* Source card */}
+          {/* Source card — thumb by default; player only after Watch */}
           {source && creator && (
             <Card className="mt-6 min-w-0 gap-0 overflow-hidden p-0">
-              <div className="flex min-w-0 flex-col gap-4 p-4 sm:flex-row">
-                <SourceThumb
-                  source={source}
-                  className="aspect-video w-full shrink-0 sm:w-40"
-                />
-                <div className="min-w-0 space-y-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Responding to
-                  </p>
-                  <p className="line-clamp-2 text-sm font-semibold leading-snug">
-                    {source.title}
-                  </p>
-                  <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                    <PlatformIcon
-                      platform={source.platform}
-                      className="size-3.5"
-                    />
-                    {source.platform && platformMeta[source.platform]?.label
-                      ? platformMeta[source.platform].label
-                      : source.platform}
-                    <span aria-hidden>·</span>
-                    {creator.hasTeaBarksProfile ? (
-                      <Link
-                        href={`/creators/${creator.handle}`}
-                        className="font-medium text-foreground hover:underline"
-                      >
-                        {creator.name}
-                      </Link>
-                    ) : (
-                      <span className="font-medium text-foreground">
-                        {creator.name}
-                      </span>
-                    )}
-                    <span aria-hidden>·</span>
-                    {formatDate(source.publishedAt)}
-                  </p>
-                  {source.url ? (
-                    <ViewOriginalSourceLink
-                      url={source.url}
-                      platform={source.platform}
-                    />
-                  ) : null}
-                  {bark.live && source.url ? (
-                    <div className="pt-2">
-                      <SaveSourceButton
-                        sourceUrl={source.url}
-                        sourceTitle={source.title}
-                        sourcePlatform={source.platform}
-                        sourceCreatorName={creator.name}
-                        sourceThumbnailUrl={source.thumbnailUrl}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              </div>
+              <SourceWatchPanel
+                source={source}
+                creatorName={creator.name}
+                creatorHandle={creator.handle}
+                creatorHasProfile={creator.hasTeaBarksProfile}
+                showSave={bark.live && Boolean(source.url)}
+              />
             </Card>
           )}
 
           {/* Analysis content */}
-          <div className="mt-8 min-w-0 break-words">
+          <div className="mt-8 min-w-0 break-words space-y-4">
+            {bark.live ? <VisitDigestBanner code={bark.code} /> : null}
+            {bark.quotedBarkCode ? (
+              <QuotedBarkCard code={bark.quotedBarkCode} />
+            ) : null}
+            <OfficialCreatorResponse
+              barkCode={bark.code}
+              creator={creator}
+              creatorResponse={bark.creatorResponse}
+            />
+            {bark.live ? <AmendReactionForm bark={bark} /> : null}
+            {bark.live ? <ClaimMapSection bark={bark} /> : null}
             <BarkReadingToolbar />
-            <BarkContent content={bark.content} evidence={bark.evidence} />
+            <BarkContent
+              content={bark.content}
+              evidence={bark.evidence}
+              barkCode={bark.live ? bark.code : undefined}
+            />
+            {bark.live ? (
+              <EvidenceRequestsPanel
+                code={bark.code}
+                authorClerkId={bark.authorId}
+              />
+            ) : null}
+            {bark.live ? <CommunityNotesSection code={bark.code} /> : null}
           </div>
 
           <Separator className="my-10" />
@@ -347,13 +355,23 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
                 replyCount={bark.replyCount}
               />
             ) : (
-              <ReplyThread replies={replies} />
+              <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                Replies are unavailable for this reaction.
+              </p>
             )}
           </section>
         </article>
 
         {/* Evidence panel + cite */}
         <aside className="min-w-0 space-y-4 lg:sticky lg:top-24 lg:h-fit">
+          {creator ? <BarkCreatorPanel creator={creator} /> : null}
+          {bark.live ? (
+            <SourceDebateGraph
+              sourceUrl={bark.sourceUrl}
+              excludeCode={bark.code}
+            />
+          ) : null}
+          {bark.live ? <BarkVersionHistory code={bark.code} /> : null}
           <CiteEmbed
             kind="bark"
             code={bark.code}
@@ -370,8 +388,8 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
                 </p>
               </div>
               <Tabs defaultValue="all">
-                <TabsList className="h-8 w-full flex-wrap">
-                  {evidenceTabs.slice(0, 4).map((t) => (
+                <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
+                  {evidenceTabs.map((t) => (
                     <TabsTrigger key={t.value} value={t.value} className="text-xs">
                       {t.label}
                     </TabsTrigger>
@@ -393,9 +411,21 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
                           No {t.label.toLowerCase()} attached.
                         </p>
                       ) : (
-                        items.map((ev) => (
-                          <EvidenceCard key={ev.id} evidence={ev} />
-                        ))
+                        items.map((ev) => {
+                          const evidenceIndex = bark.evidence.findIndex(
+                            (item) => item.id === ev.id
+                          );
+                          return (
+                            <EvidenceCard
+                              key={ev.id}
+                              evidence={ev}
+                              barkCode={bark.live ? bark.code : undefined}
+                              evidenceIndex={
+                                evidenceIndex >= 0 ? evidenceIndex : undefined
+                              }
+                            />
+                          );
+                        })
                       )}
                     </TabsContent>
                   );

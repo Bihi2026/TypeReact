@@ -6,6 +6,7 @@ import {
   BookOpen,
   Compass,
   FileText,
+  GraduationCap,
   Hash,
   Home,
   LayoutDashboard,
@@ -34,12 +35,12 @@ import { toUiCase } from "@/lib/cases/query";
 import { toUiStory } from "@/lib/stories/query";
 import { creators, topics } from "@/lib/data";
 
-const BARK_CODE_RE = /^(BRK)-(\d{4})-(\d{3,5})$/i;
+const BARK_CODE_RE = /^(TR|BRK)-(\d{4})-(\d{3,5})$/i;
 
 function normalizeBarkCode(raw: string): string | null {
   const match = raw.trim().toUpperCase().match(BARK_CODE_RE);
   if (!match) return null;
-  return `BRK-${match[2]}-${match[3].padStart(4, "0")}`;
+  return `${match[1]}-${match[2]}-${match[3].padStart(4, "0")}`;
 }
 
 export function CommandMenu() {
@@ -47,7 +48,7 @@ export function CommandMenu() {
   const [query, setQuery] = React.useState("");
   const router = useRouter();
   const barkCode = normalizeBarkCode(query);
-  const barkDocs = useQuery(api.barks.listPublic);
+  const barkDocs = useQuery(api.barks.listPublic, {});
   const publishedBarks = barkDocs ? barkDocs.map(toUiBark) : [];
   const lookupDoc = useQuery(
     api.barks.getByCode,
@@ -119,7 +120,7 @@ export function CommandMenu() {
           <CommandInput
             value={query}
             onValueChange={setQuery}
-            placeholder="Search reactions, Reaction IDs (BRK-…), cases, creators…"
+            placeholder="Search reactions, Reaction IDs (TR-…), cases, creators…"
           />
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
@@ -151,6 +152,9 @@ export function CommandMenu() {
               </CommandItem>
               <CommandItem onSelect={() => go("/stories")}>
                 <BookOpen /> Stories
+              </CommandItem>
+              <CommandItem onSelect={() => go("/learn")}>
+                <GraduationCap /> Learning Center
               </CommandItem>
               {writerLoading ? null : application?.status === "approved" ? (
                 <CommandItem onSelect={() => go("/stories/dashboard")}>

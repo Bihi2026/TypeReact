@@ -57,7 +57,7 @@ export function TopNav() {
   const unread = useUnreadNotificationCount();
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="fixed inset-x-0 top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className={cn("flex items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:px-6", SHELL_HEADER_HEIGHT)}>
         <div className="flex min-w-0 items-center gap-1 sm:gap-2">
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
@@ -84,7 +84,7 @@ export function TopNav() {
           <Logo />
         </div>
 
-        <div className="ml-auto flex items-center gap-0.5 sm:ml-2 sm:min-w-0 sm:flex-1 sm:justify-end sm:gap-1.5 md:justify-center">
+        <div className="ml-auto hidden items-center gap-0.5 sm:ml-2 sm:flex sm:min-w-0 sm:flex-1 sm:justify-end sm:gap-1.5 md:justify-center">
           <CommandMenu />
         </div>
 
@@ -106,7 +106,9 @@ export function TopNav() {
               <UnreadCountBadge compact />
             </Link>
           </Button>
-          <ThemeToggle />
+          <div className="hidden sm:block">
+            <ThemeToggle />
+          </div>
           <Show when="signed-out">
             <SignInButton>
               <Button variant="outline" size="sm" className="hidden sm:inline-flex">

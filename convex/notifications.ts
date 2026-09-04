@@ -1,11 +1,15 @@
 import { v } from "convex/values";
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { clerkUserId, requireIdentity } from "./lib/auth";
 import {
   getPrefsRow,
   prefsOrDefault,
 } from "./lib/notify";
-import { notificationFields } from "./lib/validators";
+import { notificationCategory, notificationFields } from "./lib/validators";
 
 const notificationDoc = v.object({
   ...notificationFields,
@@ -17,13 +21,16 @@ const prefsDoc = v.object({
   reply: v.boolean(),
   mention: v.boolean(),
   follower: v.boolean(),
+  followingActivity: v.boolean(),
   creatorResponse: v.boolean(),
   evidence: v.boolean(),
   verification: v.boolean(),
   message: v.boolean(),
+  circle: v.boolean(),
   soundEnabled: v.boolean(),
   digestWeekly: v.boolean(),
   digestCaseEmail: v.boolean(),
+  emailEnabled: v.boolean(),
   unreadCount: v.number(),
 });
 
@@ -36,13 +43,16 @@ const prefsArgs = {
   reply: v.boolean(),
   mention: v.boolean(),
   follower: v.boolean(),
+  followingActivity: v.boolean(),
   creatorResponse: v.boolean(),
   evidence: v.boolean(),
   verification: v.boolean(),
   message: v.boolean(),
+  circle: v.boolean(),
   soundEnabled: v.boolean(),
   digestWeekly: v.boolean(),
   digestCaseEmail: v.boolean(),
+  emailEnabled: v.boolean(),
 };
 
 export const listMine = query({
@@ -58,6 +68,47 @@ export const listMine = query({
       )
       .order("desc")
       .take(50);
+  },
+});
+
+export const listMinePage = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    unreadOnly: v.optional(v.boolean()),
+    category: v.optional(notificationCategory),
+  },
+  returns: paginationResultValidator(notificationDoc),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+    const clerkId = clerkUserId(identity);
+    const category = args.category;
+
+    if (args.unreadOnly) {
+      const unreadQuery = ctx.db
+        .query("notifications")
+        .withIndex("by_user_read", (q) =>
+          q.eq("recipientClerkId", clerkId).eq("read", false)
+        )
+        .order("desc");
+      return await (category
+        ? unreadQuery.filter((q) => q.eq(q.field("category"), category))
+        : unreadQuery
+      ).paginate(args.paginationOpts);
+    }
+
+    const allQuery = ctx.db
+      .query("notifications")
+      .withIndex("by_user_created", (q) =>
+        q.eq("recipientClerkId", clerkId)
+      )
+      .order("desc");
+    return await (category
+      ? allQuery.filter((q) => q.eq(q.field("category"), category))
+      : allQuery
+    ).paginate(args.paginationOpts);
   },
 });
 
@@ -96,13 +147,16 @@ export const getPrefs = query({
       reply: prefs.reply,
       mention: prefs.mention,
       follower: prefs.follower,
+      followingActivity: prefs.followingActivity ?? true,
       creatorResponse: prefs.creatorResponse,
       evidence: prefs.evidence,
       verification: prefs.verification,
       message: prefs.message,
+      circle: prefs.circle,
       soundEnabled: prefs.soundEnabled,
       digestWeekly: prefs.digestWeekly,
       digestCaseEmail: prefs.digestCaseEmail,
+      emailEnabled: prefs.emailEnabled,
       unreadCount: prefs.unreadCount,
     };
   },

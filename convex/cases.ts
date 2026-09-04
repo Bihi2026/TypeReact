@@ -679,3 +679,106 @@ export const submitReport = mutation({
     return null;
   },
 });
+
+const caseVisitDigestDoc = v.object({
+  lastVisitedAt: v.union(v.number(), v.null()),
+  highlights: v.array(v.string()),
+});
+
+export const getVisitDigest = query({
+  args: { code: v.string() },
+  returns: v.union(caseVisitDigestDoc, v.null()),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const me = clerkUserId(identity);
+    const accountabilityCase = await caseByCode(ctx, args.code);
+    if (!accountabilityCase) return null;
+
+    const [follow, save, visit] = await Promise.all([
+      ctx.db
+        .query("caseFollows")
+        .withIndex("by_case_user", (q) =>
+          q.eq("caseId", accountabilityCase._id).eq("clerkUserId", me)
+        )
+        .unique(),
+      ctx.db
+        .query("caseSaves")
+        .withIndex("by_case_user", (q) =>
+          q.eq("caseId", accountabilityCase._id).eq("clerkUserId", me)
+        )
+        .unique(),
+      ctx.db
+        .query("contentVisits")
+        .withIndex("by_user_target", (q) =>
+          q
+            .eq("clerkUserId", me)
+            .eq("targetKind", "case")
+            .eq("targetCode", accountabilityCase.code)
+        )
+        .unique(),
+    ]);
+
+    if (!follow && !save && accountabilityCase.openedByClerkId !== me) {
+      return null;
+    }
+
+    const since = visit?.lastVisitedAt ?? null;
+    if (since === null) {
+      return { lastVisitedAt: null, highlights: [] };
+    }
+
+    const highlights: string[] = [];
+    if (accountabilityCase.updatedAt > since) {
+      highlights.push("Case status or file was updated");
+    }
+    if (
+      accountabilityCase.creatorResponse &&
+      accountabilityCase.creatorResponse.respondedAt > since
+    ) {
+      highlights.push("Official creator response added");
+    }
+    const newTimeline = (accountabilityCase.timeline ?? []).filter(
+      (item) => item.date > since
+    );
+    if (newTimeline.length > 0) {
+      highlights.push(
+        `${newTimeline.length} new timeline event${newTimeline.length === 1 ? "" : "s"}`
+      );
+    }
+
+    return { lastVisitedAt: since, highlights };
+  },
+});
+
+export const markCaseVisited = mutation({
+  args: { code: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const me = clerkUserId(identity);
+    const accountabilityCase = await caseByCode(ctx, args.code);
+    if (!accountabilityCase) return null;
+    const existing = await ctx.db
+      .query("contentVisits")
+      .withIndex("by_user_target", (q) =>
+        q
+          .eq("clerkUserId", me)
+          .eq("targetKind", "case")
+          .eq("targetCode", accountabilityCase.code)
+      )
+      .unique();
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, { lastVisitedAt: now });
+    } else {
+      await ctx.db.insert("contentVisits", {
+        clerkUserId: me,
+        targetKind: "case",
+        targetCode: accountabilityCase.code,
+        lastVisitedAt: now,
+      });
+    }
+    return null;
+  },
+});

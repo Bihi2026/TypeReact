@@ -105,6 +105,23 @@ export function tiktokVideoId(url: URL): string | null {
   return null;
 }
 
+/** Instagram post or reel shortcode (path segment after /p/ or /reel/). */
+export function instagramMediaId(url: URL): {
+  id: string;
+  kind: "p" | "reel" | "tv";
+} | null {
+  const host = hostname(url.hostname);
+  if (host !== "instagram.com" && !host.endsWith(".instagram.com")) {
+    return null;
+  }
+  const parts = url.pathname.split("/").filter(Boolean);
+  if (parts[0] === "p" && parts[1]) return { id: parts[1], kind: "p" };
+  if (parts[0] === "reel" && parts[1]) return { id: parts[1], kind: "reel" };
+  if (parts[0] === "reels" && parts[1]) return { id: parts[1], kind: "reel" };
+  if (parts[0] === "tv" && parts[1]) return { id: parts[1], kind: "tv" };
+  return null;
+}
+
 export function facebookPhotoId(url: URL): string | null {
   if (platformFromHost(url.hostname) !== "facebook") return null;
   const fbid = url.searchParams.get("fbid");
@@ -142,6 +159,8 @@ function catalogKey(url: URL): string {
   if (reel) return `facebook:reel:${reel}`;
   const tiktok = tiktokVideoId(url);
   if (tiktok) return `tiktok:${tiktok}`;
+  const ig = instagramMediaId(url);
+  if (ig) return `instagram:${ig.kind}:${ig.id}`;
   const host = facebookHostKey(url.hostname);
   const path = url.pathname.replace(/\/+$/, "") || "/";
   return `${host}${path}${url.search}`;

@@ -34,7 +34,7 @@ export function ReportDialog({
   targetKind = "bark",
   targetId,
 }: {
-  /** Human-readable description of what is being reported, e.g. `bark BRK-2026-0341` */
+  /** Human-readable description of what is being reported, e.g. `reaction TR-2026-0341` */
   target: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;

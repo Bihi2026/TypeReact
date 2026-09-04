@@ -1,4 +1,7 @@
-import { listClerkSync } from "@/app/actions/clerk-sync";
+"use client";
+
+import { useConvexAuth, useQuery } from "convex/react";
+import { AdminGate } from "@/components/admin/admin-gate";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -15,12 +18,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { api } from "@/convex/_generated/api";
 
-export async function ClerkSyncPanel() {
-  const store = await listClerkSync();
+export function ClerkSyncPanel() {
+  const { isAuthenticated } = useConvexAuth();
+  const store = useQuery(
+    api.clerk.listSynced,
+    isAuthenticated ? {} : "skip"
+  );
 
   return (
-    <div className="space-y-6">
+    <AdminGate loading="Loading sync…" allowed={store}>
+      {store ? (
+        <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Synced users" value={store.users.length} />
         <Stat label="Organizations" value={store.organizations.length} />
@@ -116,8 +126,10 @@ export async function ClerkSyncPanel() {
               ))}
           </CardContent>
         </Card>
-      )}
-    </div>
+        )}
+      </div>
+      ) : null}
+    </AdminGate>
   );
 }
 

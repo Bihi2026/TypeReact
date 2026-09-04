@@ -14,9 +14,11 @@ import { cn } from "@/lib/utils";
 export function LikeButton({
   code,
   initialUpvotes,
+  className,
 }: {
   code: string;
   initialUpvotes: number;
+  className?: string;
 }) {
   const { isSignedIn } = useAuth();
   const queryClient = useQueryClient();
@@ -45,7 +47,10 @@ export function LikeButton({
       size="sm"
       onClick={() => void onClick()}
       aria-pressed={liked}
-      className={cn(liked && "border-primary/50 bg-primary/10 text-primary")}
+      className={cn(
+        liked && "border-primary/50 bg-primary/10 text-primary",
+        className
+      )}
     >
       <ThumbsUp className="size-3.5" />
       {formatNumber(upvotes)}

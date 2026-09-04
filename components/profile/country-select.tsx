@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  COUNTRY_SCOPE_ALL,
+  isCountryScopeAll,
+  isValidCountryCode,
+} from "@/lib/country-scope";
 import { countries } from "@/lib/countries";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +16,7 @@ export function CountrySelect({
   className,
   allowEmpty = false,
   emptyLabel = "Select a country",
+  includeAll = false,
 }: {
   id?: string;
   value: string;
@@ -19,10 +25,14 @@ export function CountrySelect({
   className?: string;
   allowEmpty?: boolean;
   emptyLabel?: string;
+  includeAll?: boolean;
 }) {
-  const selected = countries.some((country) => country.code === value)
-    ? value
-    : "";
+  const normalized = value.trim().toUpperCase();
+  const selected = isCountryScopeAll(normalized)
+    ? COUNTRY_SCOPE_ALL
+    : isValidCountryCode(normalized)
+      ? normalized
+      : "";
 
   return (
     <select
@@ -39,7 +49,10 @@ export function CountrySelect({
         className
       )}
     >
-      {allowEmpty || !selected ? (
+      {includeAll ? (
+        <option value={COUNTRY_SCOPE_ALL}>All</option>
+      ) : null}
+      {allowEmpty || (!selected && !includeAll) ? (
         <option value="" disabled={!allowEmpty}>
           {emptyLabel}
         </option>

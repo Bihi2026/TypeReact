@@ -20,6 +20,7 @@ const columns = [
       { label: "Evidence Standards", href: "/policies/evidence-standards" },
       { label: "Become a Writer", href: "/stories/apply" },
       { label: "Become a Creator", href: "/creators/apply" },
+      { label: "Learning Center", href: "/learn" },
       { label: "Countries", href: "/countries" },
       { label: "Organizations", href: "/org" },
     ],

@@ -12,16 +12,18 @@ import {
   Lock,
   ShieldCheck,
   UserCircle,
+  VolumeX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/settings", label: "Profile", icon: UserCircle },
   { href: "/settings/privacy", label: "Privacy", icon: Lock },
+  { href: "/settings/mutes", label: "Mutes", icon: VolumeX },
   // { href: "/settings/security", label: "Security", icon: ShieldCheck },
   { href: "/settings/notifications", label: "Notifications", icon: Bell },
   { href: "/settings/reading", label: "Reading", icon: BookOpen },
-  { href: "/settings/language", label: "Language", icon: Languages },
+  // { href: "/settings/language", label: "Language", icon: Languages },
   { href: "/settings/country", label: "Country", icon: Globe },
   // { href: "/settings/accounts", label: "Connected Accounts", icon: Link2 },
   // { href: "/settings/organization", label: "Organization", icon: Building2 },

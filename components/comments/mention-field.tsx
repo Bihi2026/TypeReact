@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 
 function tokenAtCaret(value: string, caret: number) {
@@ -23,12 +24,16 @@ function tokenAtCaret(value: string, caret: number) {
 
 export type MentionFieldHandle = {
   insertAtCaret: (text: string) => void;
+  wrapSelection: (prefix: string, suffix?: string, placeholder?: string) => void;
 };
 
 export const MentionField = React.forwardRef<
   MentionFieldHandle,
   {
-    barkCode: string;
+    barkCode?: string;
+    circleId?: Id<"researchCircles">;
+    /** Default: creators/writers. `users` searches platform usernames for invites. */
+    searchSource?: "mentions" | "users";
     value: string;
     onChange: (next: string) => void;
     placeholder?: string;
@@ -36,7 +41,16 @@ export const MentionField = React.forwardRef<
     id?: string;
   }
 >(function MentionField(
-  { barkCode, value, onChange, placeholder, className, id },
+  {
+    barkCode,
+    circleId,
+    searchSource = "mentions",
+    value,
+    onChange,
+    placeholder,
+    className,
+    id,
+  },
   ref
 ) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -45,14 +59,41 @@ export const MentionField = React.forwardRef<
   const [activeIndex, setActiveIndex] = React.useState(0);
   const token = tokenAtCaret(value, caret);
   const openToken = Boolean(token) && !dismissed;
-  const results = useQuery(
+  const mentionResults = useQuery(
     api.mentions.search,
-    openToken && token
-      ? { prefix: token.prefix, barkCode }
+    openToken && token && searchSource === "mentions"
+      ? {
+          prefix: token.prefix,
+          ...(barkCode ? { barkCode } : {}),
+          ...(circleId ? { circleId } : {}),
+        }
       : "skip"
   );
-  const hits = results ?? [];
-  const open = openToken && (results === undefined || hits.length > 0);
+  const userResults = useQuery(
+    api.profiles.searchByUsername,
+    openToken && token && searchSource === "users"
+      ? { prefix: token.prefix }
+      : "skip"
+  );
+  const hits = React.useMemo(() => {
+    if (searchSource === "users") {
+      return (userResults ?? []).map((row) => ({
+        handle: row.username,
+        name: row.name,
+        kind: "member" as const,
+      }));
+    }
+    return (mentionResults ?? []).map((row) => ({
+      handle: row.handle,
+      name: row.name,
+      kind: row.kind,
+    }));
+  }, [searchSource, userResults, mentionResults]);
+  const resultsLoading =
+    searchSource === "users"
+      ? userResults === undefined
+      : mentionResults === undefined;
+  const open = openToken && (resultsLoading || hits.length > 0);
 
   React.useEffect(() => {
     setActiveIndex(0);
@@ -93,7 +134,33 @@ export const MentionField = React.forwardRef<
     });
   };
 
-  React.useImperativeHandle(ref, () => ({ insertAtCaret }), [caret, value, onChange]);
+  const wrapSelection = (
+    prefix: string,
+    suffix = prefix,
+    placeholder = "text"
+  ) => {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? caret;
+    const end = el?.selectionEnd ?? caret;
+    const selected = value.slice(start, end) || placeholder;
+    const next =
+      value.slice(0, start) + prefix + selected + suffix + value.slice(end);
+    onChange(next);
+    requestAnimationFrame(() => {
+      const node = textareaRef.current;
+      if (!node) return;
+      node.focus();
+      const cursor = start + prefix.length + selected.length + suffix.length;
+      node.setSelectionRange(cursor, cursor);
+      setCaret(cursor);
+    });
+  };
+
+  React.useImperativeHandle(
+    ref,
+    () => ({ insertAtCaret, wrapSelection }),
+    [caret, value, onChange]
+  );
 
   const syncCaret = () => {
     const el = textareaRef.current;
@@ -114,7 +181,7 @@ export const MentionField = React.forwardRef<
           id={id}
           value={value}
           placeholder={placeholder}
-          aria-label="Write a reply"
+          aria-label={id === "bark-body" ? "Reaction content" : "Write a reply"}
           aria-autocomplete="list"
           className={cn("min-h-20 resize-y", className)}
           onChange={(e) => {
@@ -152,7 +219,7 @@ export const MentionField = React.forwardRef<
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <ul role="listbox" className="max-h-56 overflow-y-auto">
-          {results === undefined ? (
+          {resultsLoading ? (
             <li className="px-2 py-1.5 text-xs text-muted-foreground">
               Searching…
             </li>

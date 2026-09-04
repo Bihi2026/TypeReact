@@ -25,6 +25,14 @@ import { VerifiedBadge } from "@/components/verified-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -41,6 +49,7 @@ import { barkTypeMeta } from "@/lib/meta";
 import { useUser } from "@clerk/nextjs";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { toUiCase } from "@/lib/cases/query";
 import { toUiBark } from "@/lib/barks/query";
 import { CountrySelect } from "@/components/profile/country-select";
@@ -77,10 +86,19 @@ function evidenceLabel(score: number) {
   return { label: "Needs stronger sources", className: "text-disagree" };
 }
 
+function TabCount({ count }: { count: number }) {
+  return (
+    <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1 tabular-nums">
+      {count}
+    </Badge>
+  );
+}
+
 export function ProfileView({
   user,
   country,
   barks,
+  serverDrafts = [],
   cases,
   savedBarks,
   topTopics,
@@ -93,6 +111,7 @@ export function ProfileView({
   user: User;
   country?: { code: string; name: string; flag: string };
   barks: Bark[];
+  serverDrafts?: Bark[];
   cases: AccountabilityCase[];
   savedBarks: Bark[];
   topTopics: { slug: string; count: number }[];
@@ -124,19 +143,17 @@ export function ProfileView({
     api.writers.getMyApplication,
     ownerAuth ? {} : "skip"
   );
-  const writer =
-    myWriterApp?.status === "approved"
-      ? {
-          handle: myWriterApp.handle,
-          penName: myWriterApp.penName,
-        }
+  const resolvedWriter = isOwner
+    ? myWriterApp?.status === "approved"
+      ? { handle: myWriterApp.handle, penName: myWriterApp.penName }
       : myWriterApp === undefined
         ? initialWriter
-        : null;
+        : null
+    : initialWriter;
   const writerCtaLoading =
     isOwner &&
     (isLoading || (isAuthenticated && myWriterApp === undefined)) &&
-    !writer;
+    !resolvedWriter;
   const aboutDocs = useQuery(
     api.cases.listAboutCreator,
     isOwner && creator ? { creatorId: creator.id } : "skip"
@@ -146,6 +163,11 @@ export function ProfileView({
     : isOwner
       ? initialCasesAboutMe
       : [];
+  const reactionDocs = useQuery(
+    api.barks.listBySourceCreator,
+    isOwner && creator ? { creatorId: creator.id as Id<"creators"> } : "skip"
+  );
+  const reactionsAboutMe = reactionDocs ? reactionDocs.map(toUiBark) : [];
   const openedDocs = useQuery(
     api.cases.listOpenedByMe,
     ownerAuth ? {} : "skip"
@@ -233,6 +255,10 @@ export function ProfileView({
     ? editor.storedUsername || user.username
     : user.username;
 
+  const displayName = isOwner
+    ? (clerkUser?.fullName ?? clerkUser?.firstName ?? user.name)
+    : user.name;
+
   const shareProfile = () => {
     const path = profilePath(
       profileSlug({
@@ -250,12 +276,15 @@ export function ProfileView({
     );
   };
 
+  const inboxCount = casesAboutMe.length + reactionsAboutMe.length;
+  const draftsCount = serverDrafts.length + (draft ? 1 : 0);
+
   return (
     <div className="pb-10">
       <div className="relative overflow-hidden">
         <div
           className={cn(
-            "h-44 w-full bg-gradient-to-br sm:h-56",
+            "h-36 w-full bg-gradient-to-br sm:h-44",
             gradientFor(user.id)
           )}
           aria-hidden
@@ -264,171 +293,50 @@ export function ProfileView({
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl px-4">
-        <div className="relative -mt-14 space-y-6 sm:-mt-16">
+      <div className="mx-auto max-w-5xl px-4">
+        <div className="relative -mt-12 space-y-6 sm:-mt-14">
           <div className="rounded-2xl border bg-card/95 p-4 shadow-sm backdrop-blur sm:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start">
-                <div className="space-y-2">
-                  <PersonAvatar
-                    id={user.id}
-                    name={editing ? editor.name || user.name : user.name}
-                    imageUrl={
-                      avatarUrl ?? (isOwner ? clerkUser?.imageUrl : undefined)
-                    }
-                    className="size-24 border-4 border-background text-2xl shadow-md sm:size-28"
-                  />
-                  {isOwner && editing ? (
-                    <div className="flex flex-wrap gap-1">
-                      <input
-                        ref={fileRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) void editor.changeAvatar(file);
-                          e.target.value = "";
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={editor.avatarBusy}
-                        onClick={() => fileRef.current?.click()}
-                      >
-                        {editor.avatarBusy ? "Updating…" : "Change"}
-                      </Button>
-                      {clerkUser?.imageUrl ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          disabled={editor.avatarBusy}
-                          onClick={() => void editor.changeAvatar(null)}
-                        >
-                          Remove
-                        </Button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-                {isOwner && editing ? (
-                  <div className="min-w-0 flex-1 space-y-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="profile-edit-name">Display name</Label>
-                        <Input
-                          id="profile-edit-name"
-                          value={editor.name}
-                          onChange={(e) => editor.setName(e.target.value)}
-                          autoComplete="name"
-                          className="h-10 md:h-8"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="profile-edit-username">Username</Label>
-                        <Input
-                          id="profile-edit-username"
-                          value={editor.username}
-                          onChange={(e) => editor.setUsername(e.target.value)}
-                          placeholder="yourname"
-                          autoComplete="username"
-                          autoCapitalize="none"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          className="h-10 md:h-8"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          3–30 characters. Letters, numbers, and underscores.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="profile-edit-bio">Bio</Label>
-                      <Textarea
-                        id="profile-edit-bio"
-                        value={editor.bio}
-                        onChange={(e) => editor.setBio(e.target.value)}
-                        className="min-h-24"
-                      />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="profile-edit-website">Website</Label>
-                        <Input
-                          id="profile-edit-website"
-                          value={editor.website}
-                          onChange={(e) => editor.setWebsite(e.target.value)}
-                          placeholder="https://your-research-site.org"
-                          inputMode="url"
-                          autoCapitalize="none"
-                          autoCorrect="off"
-                          className="h-10 md:h-8"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="profile-edit-country">Country</Label>
-                        <CountrySelect
-                          id="profile-edit-country"
-                          value={editor.country}
-                          onChange={editor.setCountry}
-                          disabled={editor.saving}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2 pt-1 sm:flex-row">
-                      <Button
-                        className="h-10 w-full sm:h-8 sm:w-auto"
-                        onClick={() => void saveEditing()}
-                        disabled={editor.saving}
-                      >
-                        {editor.saving ? "Saving…" : "Save"}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-10 w-full sm:h-8 sm:w-auto"
-                        onClick={cancelEditing}
-                        disabled={editor.saving}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
+                <PersonAvatar
+                  id={user.id}
+                  name={displayName}
+                  imageUrl={
+                    avatarUrl ?? (isOwner ? clerkUser?.imageUrl : undefined)
+                  }
+                  className="size-24 border-4 border-background text-2xl shadow-md sm:size-28"
+                />
                 <div className="min-w-0 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                      {isOwner
-                        ? (clerkUser?.fullName ??
-                          clerkUser?.firstName ??
-                          user.name)
-                        : user.name}
+                      {displayName}
                     </h1>
                     {(user.verified || creator?.verified) && (
                       <VerifiedBadge className="size-5" />
                     )}
                     <Badge
                       variant="outline"
-                      className="bg-agree/10 text-agree border-agree/30"
+                      className="border-agree/30 bg-agree/10 text-agree"
                     >
                       Reactor
                     </Badge>
-                    {creator && (
+                    {creator ? (
                       <Badge
                         variant="outline"
-                        className="bg-verified/15 text-verified border-verified/30"
+                        className="border-verified/30 bg-verified/15 text-verified"
                       >
                         Creator
                       </Badge>
-                    )}
+                    ) : null}
+                    {resolvedWriter ? (
+                      <Badge variant="outline">Writer</Badge>
+                    ) : null}
                   </div>
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                     <span>@{displayedUsername}</span>
                     <span aria-hidden>·</span>
                     <span>Joined {formatDate(user.joinedAt)}</span>
-                    {countryShown && (
+                    {countryShown ? (
                       <>
                         <span aria-hidden>·</span>
                         <Link
@@ -439,7 +347,7 @@ export function ProfileView({
                           {countryShown.flag} {countryShown.name}
                         </Link>
                       </>
-                    )}
+                    ) : null}
                   </p>
                   {bio ? (
                     <p className="max-w-2xl text-sm leading-relaxed text-foreground/85">
@@ -457,7 +365,7 @@ export function ProfileView({
                       {site.replace(/^https?:\/\//, "")}
                     </a>
                   ) : null}
-                  {topTopics.length > 0 && (
+                  {topTopics.length > 0 ? (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {topTopics.map((t) => (
                         <Link key={t.slug} href={`/topics/${t.slug}`}>
@@ -470,47 +378,55 @@ export function ProfileView({
                         </Link>
                       ))}
                     </div>
-                  )}
+                  ) : null}
                 </div>
-                )}
               </div>
 
-              {editing ? null : (
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                 {isOwner ? (
                   <>
-                    <Button asChild className="h-10 w-full sm:h-8 sm:w-auto">
-                      <Link href="/create">
-                        <PenSquare className="size-4" /> New Reaction
-                      </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={startEditing}
+                    >
+                      <Settings /> Edit profile
                     </Button>
                     <Button
                       variant="outline"
-                      className="h-10 w-full sm:h-8 sm:w-auto"
-                      onClick={startEditing}
+                      size="icon-sm"
+                      aria-label="Copy profile link"
+                      onClick={shareProfile}
                     >
-                      <Settings className="size-4" /> Edit profile
+                      <Share2 />
+                    </Button>
+                    <Button asChild size="sm">
+                      <Link href="/create">
+                        <PenSquare /> New reaction
+                      </Link>
                     </Button>
                   </>
                 ) : (
-                  <FollowBarkAuthorButton
-                    authorClerkId={user.id}
-                    name={user.name}
-                    size="default"
-                  />
+                  <>
+                    <FollowBarkAuthorButton
+                      authorClerkId={user.id}
+                      name={user.name}
+                      size="sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label="Copy profile link"
+                      onClick={shareProfile}
+                    >
+                      <Share2 />
+                    </Button>
+                  </>
                 )}
-                {/*<Button*/}
-                {/*  variant="outline"*/}
-                {/*  className="h-10 w-full sm:h-8 sm:w-auto"*/}
-                {/*  onClick={shareProfile}*/}
-                {/*>*/}
-                {/*  <Share2 className="size-4" /> Share*/}
-                {/*</Button>*/}
               </div>
-              )}
             </div>
 
-            {isOwner && draft && (
+            {isOwner && draft ? (
               <div className="mt-5 flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-0.5">
                   <p className="flex items-center gap-2 text-sm font-medium">
@@ -526,29 +442,19 @@ export function ProfileView({
                   </p>
                 </div>
                 <Button asChild size="sm" className="shrink-0">
-                  <Link href="/create">
-                    Resume draft
-                  </Link>
+                  <Link href="/create">Resume draft</Link>
                 </Button>
               </div>
-            )}
+            ) : null}
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+          <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
             <div className="min-w-0 space-y-6">
-              <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <dl className="grid grid-cols-2 gap-3">
                 {[
                   {
                     label: "Reactions",
                     value: formatNumber(user.barkCount),
-                  },
-                  {
-                    label: "Followers",
-                    value: formatNumber(user.followers),
-                  },
-                  {
-                    label: "Following",
-                    value: formatNumber(user.following),
                   },
                   {
                     label: "Avg evidence",
@@ -570,31 +476,34 @@ export function ProfileView({
               </dl>
 
               <Tabs value={tab} onValueChange={setTab}>
-                <TabsList className="w-full justify-start overflow-x-auto">
-                  <TabsTrigger value="barks">
-                    Reactions ({sortedBarks.length})
-                  </TabsTrigger>
-                  {isOwner ? (
-                    <>
-                      <TabsTrigger value="cases">
-                        Cases ({ownerCases.length})
+                {isOwner ? (
+                  <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
+                    <TabsTrigger value="barks" className="flex-none">
+                      Reactions
+                      <TabCount count={sortedBarks.length} />
+                    </TabsTrigger>
+                    <TabsTrigger value="cases" className="flex-none">
+                      Cases
+                      <TabCount count={ownerCases.length} />
+                    </TabsTrigger>
+                    {creator ? (
+                      <TabsTrigger value="inbox" className="flex-none">
+                        Inbox
+                        <TabCount count={inboxCount} />
                       </TabsTrigger>
-                      {creator && (
-                        <TabsTrigger value="inbox">
-                          Cases about me ({casesAboutMe.length})
-                        </TabsTrigger>
-                      )}
-                      <TabsTrigger value="saved">
-                        Saved ({savedItems.length})
-                      </TabsTrigger>
-                      <TabsTrigger value="drafts">
-                        Drafts ({draft ? 1 : 0})
-                      </TabsTrigger>
-                    </>
-                  ) : null}
-                </TabsList>
+                    ) : null}
+                    <TabsTrigger value="saved" className="flex-none">
+                      Saved
+                      <TabCount count={savedItems.length} />
+                    </TabsTrigger>
+                    <TabsTrigger value="drafts" className="flex-none">
+                      Drafts
+                      <TabCount count={draftsCount} />
+                    </TabsTrigger>
+                  </TabsList>
+                ) : null}
 
-                <TabsContent value="barks" className="mt-4 space-y-3">
+                <TabsContent value="barks" className={cn(isOwner ? "mt-4" : "mt-0", "space-y-3")}>
                   {sortedBarks.length === 0 ? (
                     <EmptyState
                       icon={FileText}
@@ -607,11 +516,7 @@ export function ProfileView({
                       action={
                         isOwner ? (
                           <Button asChild size="sm">
-                            <Link
-                              href="/create"
-                            >
-                              Create Reaction
-                            </Link>
+                            <Link href="/create">Create Reaction</Link>
                           </Button>
                         ) : undefined
                       }
@@ -621,7 +526,7 @@ export function ProfileView({
                   )}
                 </TabsContent>
 
-                {isOwner && (
+                {isOwner ? (
                   <TabsContent value="cases" className="mt-4 space-y-3">
                     {ownerCases.length === 0 ? (
                       <EmptyState
@@ -640,113 +545,167 @@ export function ProfileView({
                       ))
                     )}
                   </TabsContent>
-                )}
+                ) : null}
 
-                {isOwner && creator && (
-                  <TabsContent value="inbox" className="mt-4 space-y-3">
-                    {casesAboutMe.length === 0 ? (
+                {isOwner && creator ? (
+                  <TabsContent value="inbox" className="mt-4 space-y-6">
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold">Cases about you</h3>
+                      {casesAboutMe.length === 0 ? (
+                        <EmptyState
+                          icon={Scale}
+                          title="No cases about you"
+                          description="When someone opens an accountability case naming your creator profile, it will show up here."
+                        />
+                      ) : (
+                        casesAboutMe.map((inboxCase) => (
+                          <div key={inboxCase.id} className="space-y-2">
+                            <CaseCard accountabilityCase={inboxCase} />
+                            {!inboxCase.creatorResponse ? (
+                              <Button asChild size="sm" variant="outline">
+                                <Link href={`/cases/${inboxCase.code}`}>
+                                  Respond officially
+                                </Link>
+                              </Button>
+                            ) : null}
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold">
+                        Reactions about you
+                      </h3>
+                      {reactionsAboutMe.length === 0 ? (
+                        <EmptyState
+                          icon={FileText}
+                          title="No reactions about you"
+                          description="Community reactions linked to your creator profile appear here."
+                        />
+                      ) : (
+                        reactionsAboutMe.map((inboxBark) => (
+                          <div key={inboxBark.id} className="space-y-2">
+                            <BarkCard bark={inboxBark} />
+                            {!inboxBark.creatorResponse ? (
+                              <Button asChild size="sm" variant="outline">
+                                <Link href={`/barks/${inboxBark.code}`}>
+                                  Respond officially
+                                </Link>
+                              </Button>
+                            ) : null}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </TabsContent>
+                ) : null}
+
+                {isOwner ? (
+                  <TabsContent value="saved" className="mt-4 space-y-3">
+                    {savedItems.length === 0 ? (
                       <EmptyState
-                        icon={Scale}
-                        title="No cases about you"
-                        description="When someone opens an accountability case naming your creator profile, it will show up here."
+                        icon={Bookmark}
+                        title="Nothing saved yet"
+                        description="Save reactions while reading to build your research library."
+                        action={
+                          <Button asChild size="sm" variant="outline">
+                            <Link href="/saved">Open saved</Link>
+                          </Button>
+                        }
                       />
                     ) : (
-                      casesAboutMe.map((inboxCase) => (
-                        <div key={inboxCase.id} className="space-y-2">
-                          <CaseCard accountabilityCase={inboxCase} />
-                          {!inboxCase.creatorResponse && (
-                            <Button asChild size="sm" variant="outline">
-                              <Link href={`/cases/${inboxCase.code}`}>
-                                Respond officially
-                              </Link>
-                            </Button>
-                          )}
-                        </div>
-                      ))
+                      <>
+                        {savedItems.map((b) => (
+                          <BarkCard key={b.id} bark={b} />
+                        ))}
+                        <p className="text-center text-xs text-muted-foreground">
+                          <Link href="/saved" className="text-primary hover:underline">
+                            View full saved library
+                          </Link>
+                        </p>
+                      </>
                     )}
                   </TabsContent>
-                )}
+                ) : null}
 
-                {isOwner && (
-                  <TabsContent value="saved" className="mt-4 space-y-3">
-                  {savedItems.length === 0 ? (
-                    <EmptyState
-                      icon={Bookmark}
-                      title="Nothing saved yet"
-                      description="Save reactions while reading to build your research library."
-                      action={
-                        <Button asChild size="sm" variant="outline">
-                          <Link href="/saved">Open saved</Link>
-                        </Button>
-                      }
-                    />
-                  ) : (
-                    <>
-                      {savedItems.map((b) => (
-                        <BarkCard key={b.id} bark={b} />
-                      ))}
-                      <p className="text-center text-xs text-muted-foreground">
-                        <Link href="/saved" className="text-primary hover:underline">
-                          View full saved library
-                        </Link>
-                      </p>
-                    </>
-                  )}
-                </TabsContent>
-                )}
-
-                {isOwner && (
-                <TabsContent value="drafts" className="mt-4 space-y-3">
-                  {draft ? (
-                    <Card className="gap-0 p-0">
-                      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">Local draft</Badge>
-                            {draft.barkType && (
+                {isOwner ? (
+                  <TabsContent value="drafts" className="mt-4 space-y-3">
+                    {serverDrafts.map((b) => (
+                      <Card key={b.id} className="gap-0 p-0">
+                        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="secondary">Draft</Badge>
                               <Badge
                                 variant="outline"
-                                className={barkTypeMeta[draft.barkType].badgeClass}
+                                className={barkTypeMeta[b.type].badgeClass}
                               >
-                                {barkTypeMeta[draft.barkType].label}
+                                {barkTypeMeta[b.type].label}
                               </Badge>
-                            )}
+                              <span className="font-mono text-[11px] text-muted-foreground">
+                                {b.code}
+                              </span>
+                            </div>
+                            <p className="font-medium">{b.title}</p>
+                            <p className="line-clamp-2 text-sm text-muted-foreground">
+                              {b.excerpt || "Continue editing this reaction."}
+                            </p>
                           </div>
-                          <p className="font-medium">
-                            {draft.title?.trim() || "Untitled reaction"}
-                          </p>
-                          <p className="line-clamp-2 text-sm text-muted-foreground">
-                            {draft.body?.trim() ||
-                              "Continue where you left off in the create wizard."}
-                          </p>
+                          <div className="flex shrink-0 gap-2">
+                            <Button asChild size="sm" variant="outline">
+                              <Link href={`/create?code=${b.code}`}>Edit</Link>
+                            </Button>
+                            <Button asChild size="sm">
+                              <Link href={`/barks/${b.code}`}>Preview</Link>
+                            </Button>
+                          </div>
                         </div>
-                        <Button asChild size="sm" className="shrink-0">
-                          <Link
-                            href="/create"
-                          >
-                            Resume
-                          </Link>
-                        </Button>
-                      </div>
-                    </Card>
-                  ) : (
-                    <EmptyState
-                      icon={FileText}
-                      title="No drafts"
-                      description="Drafts you save from the reaction editor will appear here."
-                      action={
-                        <Button asChild size="sm">
-                          <Link
-                            href="/create"
-                          >
-                            Start a Reaction
-                          </Link>
-                        </Button>
-                      }
-                    />
-                  )}
-                </TabsContent>
-                )}
+                      </Card>
+                    ))}
+                    {draft ? (
+                      <Card className="gap-0 p-0">
+                        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="secondary">Local draft</Badge>
+                              {draft.barkType ? (
+                                <Badge
+                                  variant="outline"
+                                  className={barkTypeMeta[draft.barkType].badgeClass}
+                                >
+                                  {barkTypeMeta[draft.barkType].label}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <p className="font-medium">
+                              {draft.title?.trim() || "Untitled reaction"}
+                            </p>
+                            <p className="line-clamp-2 text-sm text-muted-foreground">
+                              {draft.body?.trim() ||
+                                "Continue where you left off in the create wizard."}
+                            </p>
+                          </div>
+                          <Button asChild size="sm" className="shrink-0">
+                            <Link href="/create">Resume</Link>
+                          </Button>
+                        </div>
+                      </Card>
+                    ) : null}
+                    {serverDrafts.length === 0 && !draft ? (
+                      <EmptyState
+                        icon={FileText}
+                        title="No drafts"
+                        description="Drafts you save from the reaction editor will appear here."
+                        action={
+                          <Button asChild size="sm">
+                            <Link href="/create">Start a Reaction</Link>
+                          </Button>
+                        }
+                      />
+                    ) : null}
+                  </TabsContent>
+                ) : null}
               </Tabs>
             </div>
 
@@ -783,7 +742,7 @@ export function ProfileView({
                 </div>
               </Card>
 
-              {typeBreakdown.length > 0 && (
+              {typeBreakdown.length > 0 ? (
                 <Card className="gap-0 p-0">
                   <div className="space-y-3 p-4">
                     <h2 className="text-sm font-semibold">Reaction mix</h2>
@@ -807,124 +766,254 @@ export function ProfileView({
                     </ul>
                   </div>
                 </Card>
-              )}
+              ) : null}
 
-              {isOwner ? (
-              <Card className="gap-0 p-0">
-                <div className="space-y-3 p-4">
-                  <h2 className="text-sm font-semibold">Quick actions</h2>
-                  <div className="grid gap-2">
-                    <Button asChild variant="secondary" size="sm">
-                      <Link href="/create">
-                        Create Reaction
+              {creator || resolvedWriter ? (
+                <Card className="gap-0 p-0">
+                  <div className="space-y-3 p-4">
+                    <h2 className="text-sm font-semibold">Profiles</h2>
+                    {creator ? (
+                      <Link
+                        href={`/creators/${creator.handle}`}
+                        className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
+                      >
+                        <BadgeCheck className="mt-0.5 size-4 text-verified" />
+                        <span>
+                          <span className="block text-sm font-medium">
+                            Creator profile
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            @{creator.handle}
+                            {creator.name ? ` · ${creator.name}` : ""}
+                          </span>
+                        </span>
                       </Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href="/cases/new">Open case</Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href="/notifications">Notifications</Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href="/following">Following feed</Link>
-                    </Button>
+                    ) : null}
+                    {resolvedWriter ? (
+                      <div className="flex items-start gap-3 rounded-lg border p-3">
+                        <PenSquare className="mt-0.5 size-4 text-primary" />
+                        <span>
+                          <span className="block text-sm font-medium">
+                            Writer
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {resolvedWriter.penName} · @{resolvedWriter.handle}
+                          </span>
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
-              </Card>
+                </Card>
               ) : null}
 
               {isOwner ? (
-              <Card className="gap-0 p-0">
-                <div className="space-y-3 p-4">
-                  <h2 className="text-sm font-semibold">Grow your presence</h2>
-                  {writerCtaLoading ? (
-                    <div className="h-[4.5rem] animate-pulse rounded-lg border bg-muted/40" />
-                  ) : writer ? (
-                    <Link
-                      href="/stories/dashboard"
-                      className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
-                    >
-                      <PenSquare className="mt-0.5 size-4 text-primary" />
-                      <span>
-                        <span className="block text-sm font-medium">
-                          Writer dashboard
+                <Card className="gap-0 p-0">
+                  <div className="space-y-3 p-4">
+                    <h2 className="text-sm font-semibold">Grow your presence</h2>
+                    {writerCtaLoading ? (
+                      <div className="h-[4.5rem] animate-pulse rounded-lg border bg-muted/40" />
+                    ) : resolvedWriter ? (
+                      <Link
+                        href="/stories/dashboard"
+                        className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
+                      >
+                        <PenSquare className="mt-0.5 size-4 text-primary" />
+                        <span>
+                          <span className="block text-sm font-medium">
+                            Writer dashboard
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Writing as {resolvedWriter.penName} · @
+                            {resolvedWriter.handle}
+                          </span>
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          Writing as {writer.penName} · @{writer.handle}
+                      </Link>
+                    ) : myWriterApp ? (
+                      <Link
+                        href="/stories/dashboard"
+                        className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
+                      >
+                        <PenSquare className="mt-0.5 size-4 text-primary" />
+                        <span>
+                          <span className="block text-sm font-medium">
+                            Application status
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {myWriterApp.status === "pending"
+                              ? `Application ${myWriterApp.applicationCode} is under review.`
+                              : `Application ${myWriterApp.applicationCode} is already on file.`}
+                          </span>
                         </span>
-                      </span>
-                    </Link>
-                  ) : myWriterApp ? (
-                    <Link
-                      href="/stories/dashboard"
-                      className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
-                    >
-                      <PenSquare className="mt-0.5 size-4 text-primary" />
-                      <span>
-                        <span className="block text-sm font-medium">
-                          Application status
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/stories/apply"
+                        className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
+                      >
+                        <PenSquare className="mt-0.5 size-4 text-primary" />
+                        <span>
+                          <span className="block text-sm font-medium">
+                            Become a Writer
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Publish serialized fiction on Stories.
+                          </span>
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          {myWriterApp.status === "pending"
-                            ? `Application ${myWriterApp.applicationCode} is under review.`
-                            : `Application ${myWriterApp.applicationCode} is already on file.`}
+                      </Link>
+                    )}
+                    {creator ? null : (
+                      <Link
+                        href="/creators/apply"
+                        className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
+                      >
+                        <BadgeCheck className="mt-0.5 size-4 text-verified" />
+                        <span>
+                          <span className="block text-sm font-medium">
+                            Become a Creator
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Claim a public profile and respond officially.
+                          </span>
                         </span>
-                      </span>
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/stories/apply"
-                      className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
-                    >
-                      <PenSquare className="mt-0.5 size-4 text-primary" />
-                      <span>
-                        <span className="block text-sm font-medium">
-                          Become a Writer
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          Publish serialized fiction on Stories.
-                        </span>
-                      </span>
-                    </Link>
-                  )}
-                  {creator ? (
-                    <Link
-                      href={`/creators/${creator.handle}`}
-                      className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
-                    >
-                      <BadgeCheck className="mt-0.5 size-4 text-verified" />
-                      <span>
-                        <span className="block text-sm font-medium">
-                          Your creator profile
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          @{creator.handle} · official responses live here.
-                        </span>
-                      </span>
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/creators/apply"
-                      className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40"
-                    >
-                      <BadgeCheck className="mt-0.5 size-4 text-verified" />
-                      <span>
-                        <span className="block text-sm font-medium">
-                          Become a Creator
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          Claim a public profile and respond officially.
-                        </span>
-                      </span>
-                    </Link>
-                  )}
-                </div>
-              </Card>
+                      </Link>
+                    )}
+                  </div>
+                </Card>
               ) : null}
             </aside>
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={editing}
+        onOpenChange={(open) => {
+          if (!open) cancelEditing();
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit profile</DialogTitle>
+            <DialogDescription>
+              How you appear across reactions, cases, and replies.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <PersonAvatar
+                id={user.id}
+                name={editor.name || displayName}
+                imageUrl={avatarUrl ?? clerkUser?.imageUrl}
+                className="size-16 text-xl"
+              />
+              <div className="flex flex-wrap gap-2">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void editor.changeAvatar(file);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={editor.avatarBusy}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {editor.avatarBusy ? "Updating…" : "Change photo"}
+                </Button>
+                {clerkUser?.imageUrl ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={editor.avatarBusy}
+                    onClick={() => void editor.changeAvatar(null)}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-edit-name">Display name</Label>
+                <Input
+                  id="profile-edit-name"
+                  value={editor.name}
+                  onChange={(e) => editor.setName(e.target.value)}
+                  autoComplete="name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-edit-username">Username</Label>
+                <Input
+                  id="profile-edit-username"
+                  value={editor.username}
+                  onChange={(e) => editor.setUsername(e.target.value)}
+                  placeholder="yourname"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                <p className="text-xs text-muted-foreground">
+                  3–30 characters. Letters, numbers, and underscores.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-edit-bio">Bio</Label>
+              <Textarea
+                id="profile-edit-bio"
+                value={editor.bio}
+                onChange={(e) => editor.setBio(e.target.value)}
+                className="min-h-24"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-edit-website">Website</Label>
+                <Input
+                  id="profile-edit-website"
+                  value={editor.website}
+                  onChange={(e) => editor.setWebsite(e.target.value)}
+                  placeholder="https://your-research-site.org"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-edit-country">Country</Label>
+                <CountrySelect
+                  id="profile-edit-country"
+                  value={editor.country}
+                  onChange={editor.setCountry}
+                  disabled={editor.saving}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={cancelEditing}
+              disabled={editor.saving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void saveEditing()} disabled={editor.saving}>
+              {editor.saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

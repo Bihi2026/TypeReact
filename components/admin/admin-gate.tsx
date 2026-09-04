@@ -15,7 +15,11 @@ export function AdminGate({
 }) {
   if (allowed === undefined) {
     return (
-      <p className="py-8 text-center text-sm text-muted-foreground">{loading}</p>
+      <div className="space-y-3" role="status" aria-label={loading}>
+        <div className="h-10 animate-pulse rounded-lg bg-muted" />
+        <div className="h-24 animate-pulse rounded-lg bg-muted" />
+        <div className="h-24 animate-pulse rounded-lg bg-muted" />
+      </div>
     );
   }
   if (allowed === null) {

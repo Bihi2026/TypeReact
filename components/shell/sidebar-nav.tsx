@@ -20,8 +20,8 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       className={cn(
         "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
         active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+          ? "bg-primary/10 text-primary"
+          : "text-foreground/70 hover:bg-muted hover:text-foreground"
       )}
     >
       <Icon className="size-4.5 shrink-0" aria-hidden />
@@ -65,7 +65,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav
       aria-label="Main navigation"
-      className="flex h-full flex-col gap-1 overflow-y-auto p-3"
+      className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto p-3 lg:overscroll-contain"
       onClick={onNavigate}
     >
       {mainNav.map((item) => (

@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -49,6 +50,7 @@ export function ContestBlindReview({
   const [score, setScore] = React.useState("7");
   const [notes, setNotes] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  const [winnerConfirmOpen, setWinnerConfirmOpen] = React.useState(false);
 
   const contest = contests?.find((row) => row._id === contestId);
 
@@ -79,13 +81,6 @@ export function ContestBlindReview({
 
   const chooseWinner = async () => {
     if (!selectedId) return;
-    if (
-      !window.confirm(
-        "Pick this entry as the winner? The contest will close and the author’s story slug will be published."
-      )
-    ) {
-      return;
-    }
     try {
       const result = await pickWinner({ contestId, entryId: selectedId });
       toast.success(`Winner set: ${result.winnerSlug}`);
@@ -234,7 +229,10 @@ export function ContestBlindReview({
                   {saving ? "Saving…" : "Save score"}
                 </Button>
                 {!contest?.winnerSlug ? (
-                  <Button variant="outline" onClick={chooseWinner}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setWinnerConfirmOpen(true)}
+                  >
                     Pick winner
                   </Button>
                 ) : null}
@@ -243,6 +241,15 @@ export function ContestBlindReview({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={winnerConfirmOpen}
+        onOpenChange={setWinnerConfirmOpen}
+        title="Pick this entry as the winner?"
+        description="The contest will close and the author’s story slug will be published."
+        confirmLabel="Pick winner"
+        onConfirm={chooseWinner}
+      />
     </div>
   );
 }

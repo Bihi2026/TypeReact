@@ -9,7 +9,7 @@ import { ensureUnclaimedCreatorAction } from "@/app/actions/creators";
 import { getConvexClerkToken } from "@/lib/convex-clerk";
 import { resolveExternalIdentity } from "@/lib/creators/external-identity";
 import { toUiSource } from "@/lib/sources/query";
-import type { Bark, BarkType, EvidenceType, Source, SourcePlatform } from "@/lib/types";
+import type { Bark, BarkType, CaseCategory, EvidenceType, Source, SourcePlatform } from "@/lib/types";
 
 export type PublishBarkInput = {
   type: BarkType;
@@ -22,6 +22,8 @@ export type PublishBarkInput = {
   sourceCreatorName: string;
   sourceCreatorId?: string;
   sourceThumbnailUrl?: string;
+  topics?: CaseCategory[];
+  quotedBarkCode?: string;
   evidence: {
     type: EvidenceType;
     title: string;
@@ -96,6 +98,16 @@ export async function listPublicBarksByCountry(country: string): Promise<Bark[]>
   }
 }
 
+export async function listPublicBarksByTopic(topic: CaseCategory): Promise<Bark[]> {
+  try {
+    const docs = await fetchQuery(api.barks.listPublicByTopic, { topic });
+    return docs.map(toUiBark);
+  } catch (error) {
+    console.error("Failed to list public barks by topic:", error);
+    return [];
+  }
+}
+
 export type CountryStat = {
   code: string;
   barkCount: number;
@@ -137,11 +149,66 @@ export async function getBarkByCodeAction(code: string): Promise<Bark | null> {
 export async function listMyBarks(): Promise<Bark[]> {
   try {
     const token = await getConvexClerkToken("view your reactions");
-    const docs = await fetchQuery(api.barks.listMine, {}, { token });
+    const docs = await fetchQuery(
+      api.barks.listMine,
+      { status: "public" },
+      { token }
+    );
     return docs.map(toUiBark);
   } catch {
     return [];
   }
+}
+
+export async function updateBarkDraft(
+  code: string,
+  input: PublishBarkInput
+): Promise<{ code: string }> {
+  const token = await getConvexClerkToken("update a draft reaction");
+  let sourceCreatorId: Id<"creators"> | undefined = input.sourceCreatorId
+    ? (input.sourceCreatorId as Id<"creators">)
+    : undefined;
+  await fetchMutation(
+    api.barks.update,
+    {
+      code,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      sourceUrl: input.sourceUrl,
+      sourceTitle: input.sourceTitle,
+      sourcePlatform: input.sourcePlatform,
+      sourceCreatorName: input.sourceCreatorName,
+      ...(sourceCreatorId ? { sourceCreatorId } : {}),
+      ...(input.sourceThumbnailUrl
+        ? { sourceThumbnailUrl: input.sourceThumbnailUrl }
+        : {}),
+      topics: input.topics,
+      ...(input.quotedBarkCode !== undefined
+        ? { quotedBarkCode: input.quotedBarkCode || null }
+        : {}),
+      evidence: input.evidence.map((item) => ({
+        type: item.type,
+        title: item.title,
+        url: item.url,
+        storageId: item.storageId
+          ? (item.storageId as Id<"_storage">)
+          : undefined,
+        fileName: item.fileName,
+        contentType: item.contentType,
+      })),
+    },
+    { token }
+  );
+  if (input.status === "public") {
+    await fetchMutation(api.barks.publishDraft, { code }, { token });
+  }
+  return { code };
+}
+
+export async function removeBarkDraft(code: string): Promise<void> {
+  const token = await getConvexClerkToken("delete a draft reaction");
+  await fetchMutation(api.barks.remove, { code }, { token });
 }
 
 export async function listBarksBySourceCreator(

@@ -43,10 +43,12 @@ export type NotificationCategory =
   | "reply"
   | "mention"
   | "follower"
+  | "following"
   | "creator-response"
   | "evidence"
   | "verification"
-  | "message";
+  | "message"
+  | "circle";
 
 export type ReportCategory =
   | "hate-speech"
@@ -71,6 +73,14 @@ export type CaseCategory =
   | "scam"
   | "plagiarism";
 
+export type CreatorStatus = "unclaimed" | "pending" | "approved" | "rejected";
+
+export interface CreatorOfficialResponse {
+  content: string;
+  respondedAt: string;
+  verified: boolean;
+}
+
 export interface Creator {
   id: string;
   handle: string;
@@ -78,6 +88,11 @@ export interface Creator {
   bio: string;
   verified: boolean;
   hasTeaBarksProfile: boolean;
+  status?: CreatorStatus;
+  externalHandle?: string;
+  externalPlatform?: SourcePlatform;
+  profileImageUrl?: string;
+  officialResponseCount?: number;
   platforms: SourcePlatform[];
   officialLinks: { label: string; url: string }[];
   followers: number;
@@ -140,6 +155,9 @@ export interface Evidence {
   addedByName?: string;
   addedAt: string;
   verified: boolean;
+  attestCount?: number;
+  challengeCount?: number;
+  myVote?: "attest" | "challenge" | null;
 }
 
 export type ContentBlock =
@@ -148,6 +166,29 @@ export type ContentBlock =
   | { kind: "quote"; text: string; attribution?: string }
   | { kind: "evidence"; evidenceId: string }
   | { kind: "list"; items: string[] };
+
+export interface BarkDialogueTurn {
+  role: "creator" | "author";
+  content: string;
+  respondedAt: string;
+  verified: boolean;
+  evidence?: Evidence[];
+}
+
+export interface BarkVersionSummary {
+  version: number;
+  changeNote: string;
+  createdAt: string;
+  title: string;
+  excerpt: string;
+}
+
+export interface BarkClaim {
+  id: string;
+  text: string;
+  status: ClaimStatus;
+  evidenceIndexes: number[];
+}
 
 export interface Bark {
   id: string;
@@ -177,7 +218,15 @@ export interface Bark {
   sourceCreatorName?: string;
   sourceCreatorId?: string;
   sourceThumbnailUrl?: string;
+  creatorResponse?: CreatorOfficialResponse;
+  creatorDialogue?: BarkDialogueTurn[];
+  version?: number;
+  amendedAt?: string;
+  promotedCaseCode?: string;
+  quotedBarkCode?: string;
+  claims?: BarkClaim[];
   live?: boolean;
+  status?: "public" | "draft";
 }
 
 export interface CreatorReview {
@@ -344,4 +393,38 @@ export interface Conversation {
   participantId: string;
   messages: Message[];
   unread: number;
+}
+
+export type LearningResourceType = "video" | "article" | "download";
+
+export type LearningCategory =
+  | "getting-started"
+  | "evidence"
+  | "reactions"
+  | "cases"
+  | "creators"
+  | "platform";
+
+export type LearningResourceStatus = "draft" | "published";
+
+export interface LearningResource {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  type: LearningResourceType;
+  category: LearningCategory;
+  status: LearningResourceStatus;
+  sortOrder: number;
+  durationMinutes?: number;
+  thumbnailUrl?: string;
+  videoUrl?: string;
+  videoPlatform?: SourcePlatform;
+  contentBlocks?: ContentBlock[];
+  fileName?: string;
+  fileContentType?: string;
+  externalDownloadUrl?: string;
+  publishedAt?: string;
+  updatedAt: string;
+  downloadUrl?: string;
 }

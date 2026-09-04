@@ -1,6 +1,8 @@
 import { v } from "convex/values";
-import { query } from "./_generated/server";
-import { isAdmin } from "./lib/admin";
+import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { isAdmin, requireAdmin } from "./lib/admin";
+import { recordModerationEvent } from "./lib/moderation";
 import { displayName } from "./lib/notify";
 import {
   creatorStatus,
@@ -71,6 +73,7 @@ const reportRow = v.object({
   target: v.string(),
   href: v.string(),
   category: reportCategory,
+  details: v.string(),
   reporterName: v.string(),
   status: v.literal("open"),
   createdAt: v.number(),
@@ -104,6 +107,10 @@ function deltaLabel(current: number, previous: number) {
 
 function formatCapped(count: number, cap: number) {
   return { value: count, capped: count >= cap };
+}
+
+function isOpenReport(status: "open" | "dismissed" | undefined) {
+  return status !== "dismissed";
 }
 
 function monthBuckets(nowMs: number) {
@@ -236,7 +243,9 @@ export const stats = query({
     ).length;
 
     const openReports =
-      barkReports.length + caseReports.length + storyReports.length;
+      barkReports.filter((r) => isOpenReport(r.status)).length +
+      caseReports.filter((r) => isOpenReport(r.status)).length +
+      storyReports.filter((r) => isOpenReport(r.status)).length;
     const openThis =
       barkReportsThis.length +
       caseReportsThis.length +
@@ -372,9 +381,11 @@ export const listCreators = query({
 });
 
 export const listReports = query({
-  args: {},
+  args: {
+    kind: v.optional(reportKind),
+  },
   returns: v.union(v.array(reportRow), v.null()),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) return null;
 
     const [barkReports, caseReports, storyReports] = await Promise.all([
@@ -389,61 +400,179 @@ export const listReports = query({
       target: string;
       href: string;
       category: (typeof barkReports)[number]["category"];
+      details: string;
       reporterName: string;
       status: "open";
       createdAt: number;
     }[] = [];
 
-    for (const report of barkReports) {
-      const bark = await ctx.db.get(report.barkId);
-      const code = bark?.code ?? report.targetId;
-      const target =
-        report.targetKind === "comment" ? `${code} comment` : code;
-      rows.push({
-        id: report._id,
-        kind: "bark",
-        target,
-        href: `/barks/${code}`,
-        category: report.category,
-        reporterName: await displayName(ctx, report.reporterClerkId, "Member"),
-        status: "open",
-        createdAt: report.createdAt,
-      });
+    const includeBark = !args.kind || args.kind === "bark";
+    const includeCase = !args.kind || args.kind === "case";
+    const includeStory = !args.kind || args.kind === "story";
+
+    if (includeBark) {
+      for (const report of barkReports) {
+        if (!isOpenReport(report.status)) continue;
+        const bark = await ctx.db.get(report.barkId);
+        const code = bark?.code ?? report.targetId;
+        const target =
+          report.targetKind === "comment" ? `${code} comment` : code;
+        rows.push({
+          id: report._id,
+          kind: "bark",
+          target,
+          href: `/barks/${code}`,
+          category: report.category,
+          details: report.details.slice(0, 160),
+          reporterName: await displayName(ctx, report.reporterClerkId, "Member"),
+          status: "open",
+          createdAt: report.createdAt,
+        });
+      }
     }
 
-    for (const report of caseReports) {
-      const accountabilityCase = await ctx.db.get(report.caseId);
-      const code = accountabilityCase?.code ?? "case";
-      rows.push({
-        id: report._id,
-        kind: "case",
-        target: code,
-        href: `/cases/${code}`,
-        category: report.category,
-        reporterName: await displayName(ctx, report.reporterClerkId, "Member"),
-        status: "open",
-        createdAt: report.createdAt,
-      });
+    if (includeCase) {
+      for (const report of caseReports) {
+        if (!isOpenReport(report.status)) continue;
+        const accountabilityCase = await ctx.db.get(report.caseId);
+        const code = accountabilityCase?.code ?? "case";
+        rows.push({
+          id: report._id,
+          kind: "case",
+          target: code,
+          href: `/cases/${code}`,
+          category: report.category,
+          details: report.details.slice(0, 160),
+          reporterName: await displayName(ctx, report.reporterClerkId, "Member"),
+          status: "open",
+          createdAt: report.createdAt,
+        });
+      }
     }
 
-    for (const report of storyReports) {
-      const story = await ctx.db.get(report.storyId);
-      rows.push({
-        id: report._id,
-        kind: "story",
-        target: story?.title ?? "Story",
-        href: story ? `/stories/${story.slug}` : "/stories",
-        category: report.category,
-        reporterName: await displayName(ctx, report.reporterClerkId, "Member"),
-        status: "open",
-        createdAt: report.createdAt,
-      });
+    if (includeStory) {
+      for (const report of storyReports) {
+        if (!isOpenReport(report.status)) continue;
+        const story = await ctx.db.get(report.storyId);
+        rows.push({
+          id: report._id,
+          kind: "story",
+          target: story?.title ?? "Story",
+          href: story ? `/stories/${story.slug}` : "/stories",
+          category: report.category,
+          details: report.details.slice(0, 160),
+          reporterName: await displayName(ctx, report.reporterClerkId, "Member"),
+          status: "open",
+          createdAt: report.createdAt,
+        });
+      }
     }
 
     rows.sort((a, b) => b.createdAt - a.createdAt);
     return rows.slice(0, LIST_CAP);
   },
 });
+
+export const queueCounts = query({
+  args: {},
+  returns: v.union(
+    v.object({
+      reports: v.number(),
+      verification: v.number(),
+      writerApps: v.number(),
+      casesUnderReview: v.number(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx) => {
+    if (!(await isAdmin(ctx))) return null;
+    const [
+      barkReports,
+      caseReports,
+      storyReports,
+      pendingCreators,
+      pendingWriters,
+      casesUnderReview,
+    ] = await Promise.all([
+      ctx.db.query("barkReports").order("desc").take(REPORT_SOURCE_CAP),
+      ctx.db.query("caseReports").order("desc").take(REPORT_SOURCE_CAP),
+      ctx.db.query("storyReports").order("desc").take(REPORT_SOURCE_CAP),
+      ctx.db
+        .query("creators")
+        .withIndex("by_status_createdAt", (q) => q.eq("status", "pending"))
+        .take(LIST_CAP),
+      ctx.db
+        .query("writers")
+        .withIndex("by_status_createdAt", (q) => q.eq("status", "pending"))
+        .take(LIST_CAP),
+      ctx.db
+        .query("cases")
+        .withIndex("by_status_updatedAt", (q) => q.eq("status", "under-review"))
+        .take(LIST_CAP),
+    ]);
+    const reports =
+      barkReports.filter((r) => isOpenReport(r.status)).length +
+      caseReports.filter((r) => isOpenReport(r.status)).length +
+      storyReports.filter((r) => isOpenReport(r.status)).length;
+    return {
+      reports,
+      verification: pendingCreators.length,
+      writerApps: pendingWriters.length,
+      casesUnderReview: casesUnderReview.length,
+    };
+  },
+});
+
+export const dismissReport = mutation({
+  args: {
+    kind: reportKind,
+    reportId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { clerkId, identity } = await requireAdmin(ctx);
+    const actorName = await displayName(
+      ctx,
+      clerkId,
+      typeof identity.name === "string" ? identity.name : "Admin"
+    );
+
+    let targetLabel = args.reportId.slice(-8).toUpperCase();
+
+    if (args.kind === "bark") {
+      const report = await ctx.db.get(args.reportId as Id<"barkReports">);
+      if (!report) throw new Error("Report not found");
+      if (!isOpenReport(report.status)) return null;
+      await ctx.db.patch(report._id, { status: "dismissed" });
+      const bark = await ctx.db.get(report.barkId);
+      targetLabel = bark?.code ?? report.targetId;
+    } else if (args.kind === "case") {
+      const report = await ctx.db.get(args.reportId as Id<"caseReports">);
+      if (!report) throw new Error("Report not found");
+      if (!isOpenReport(report.status)) return null;
+      await ctx.db.patch(report._id, { status: "dismissed" });
+      const accountabilityCase = await ctx.db.get(report.caseId);
+      targetLabel = accountabilityCase?.code ?? "case";
+    } else {
+      const report = await ctx.db.get(args.reportId as Id<"storyReports">);
+      if (!report) throw new Error("Report not found");
+      if (!isOpenReport(report.status)) return null;
+      await ctx.db.patch(report._id, { status: "dismissed" });
+      const story = await ctx.db.get(report.storyId);
+      targetLabel = story?.title ?? "Story";
+    }
+
+    await recordModerationEvent(ctx, {
+      kind: "report_dismiss",
+      actorClerkId: clerkId,
+      actorName,
+      targetLabel,
+      note: `Dismissed ${args.kind} report`,
+    });
+    return null;
+  },
+});
+
 
 const storyReportRow = v.object({
   id: v.string(),
@@ -466,6 +595,7 @@ export const listStoryReports = query({
       .take(LIST_CAP);
     const rows = [];
     for (const report of reports) {
+      if (!isOpenReport(report.status)) continue;
       const story = await ctx.db.get(report.storyId);
       rows.push({
         id: report._id,

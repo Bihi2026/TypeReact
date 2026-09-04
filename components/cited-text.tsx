@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Fragment } from "react";
 
-/** Matches BRK-/CASE- codes, optionally prefixed with @ */
-const CODE_RE = /(@?(?:BRK|CASE)-\d{4}-\d{3,5})/gi;
+/** Matches TR-/BRK-/CASE- codes, optionally prefixed with @ */
+const CODE_RE = /(@?(?:TR|BRK|CASE)-\d{4}-\d{3,5})/gi;
 
 export function CitedText({
   text,
@@ -16,7 +16,7 @@ export function CitedText({
   return (
     <span className={className}>
       {parts.map((part, i) => {
-        const match = part.match(/^@?((?:BRK|CASE)-\d{4}-\d{3,5})$/i);
+        const match = part.match(/^@?((?:TR|BRK|CASE)-\d{4}-\d{3,5})$/i);
         if (!match) {
           return <Fragment key={i}>{part}</Fragment>;
         }

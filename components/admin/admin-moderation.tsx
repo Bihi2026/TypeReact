@@ -9,6 +9,7 @@ import { api } from "@/convex/_generated/api";
 
 const actionLabel = {
   report: "Report received",
+  report_dismiss: "Report dismissed",
   creator_approve: "Creator approved",
   creator_reject: "Creator rejected",
   writer_approve: "Writer approved",

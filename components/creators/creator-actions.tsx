@@ -15,16 +15,26 @@ export function CreatorFollowButton({
   creatorId,
   name,
   size = "default",
+  followable = true,
 }: {
   creatorId: string;
   name: string;
   size?: "default" | "sm";
+  followable?: boolean;
 }) {
   const { isSignedIn } = useAuth();
   const id = creatorId as Id<"creators">;
-  const state = useQuery(api.creators.followState, { creatorId: id });
+  const state = useQuery(
+    api.creators.followState,
+    followable ? { creatorId: id } : "skip"
+  );
   const toggleFollow = useMutation(api.creators.toggleFollow);
-  const following = state?.following ?? false;
+
+  if (!followable || state === null) return null;
+  if (state === undefined) return null;
+  if (state.isSelf) return null;
+
+  const following = state.following;
 
   return (
     <Button
@@ -73,14 +83,22 @@ export function CreatorProfileActions({
   creatorId,
   name,
   handle,
+  followable = true,
 }: {
   creatorId: string;
   name: string;
   handle: string;
+  followable?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
-      <CreatorFollowButton creatorId={creatorId} name={name} />
+      {followable ? (
+        <CreatorFollowButton
+          creatorId={creatorId}
+          name={name}
+          followable={followable}
+        />
+      ) : null}
       <StartMessageButton kind="creator" creatorHandle={handle} />
       <Button asChild variant="outline">
         <Link href={`/cases/new?creator=${handle}`}>

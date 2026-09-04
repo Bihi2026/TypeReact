@@ -1,10 +1,10 @@
 "use client";
 
 import { MessageSquare } from "lucide-react";
-import { useQuery } from "convex/react";
+import { usePaginatedQuery } from "convex/react";
 import { BarkCard } from "@/components/bark-card";
 import { EmptyState } from "@/components/empty-state";
-import { PaginatedList } from "@/components/paginated-list";
+import { Button } from "@/components/ui/button";
 import {
   Tabs,
   TabsContent,
@@ -32,8 +32,15 @@ const empty = (
 );
 
 export function BarksList({ initialBarks }: { initialBarks: Bark[] }) {
-  const docs = useQuery(api.barks.listPublic);
-  const data = docs ? docs.map(toUiBark) : initialBarks;
+  const { results, status, loadMore } = usePaginatedQuery(
+    api.barks.listPublicPage,
+    {},
+    { initialNumItems: 10 }
+  );
+  const data =
+    status === "LoadingFirstPage" && results.length === 0
+      ? initialBarks
+      : results.map(toUiBark);
   const sorted = sortBarksByPublishedAt(data);
 
   return (
@@ -49,13 +56,31 @@ export function BarksList({ initialBarks }: { initialBarks: Bark[] }) {
         const items =
           t.value === "all" ? sorted : sorted.filter((b) => b.type === t.value);
         return (
-          <TabsContent key={t.value} value={t.value} className="mt-4">
-            <PaginatedList
-              items={items}
-              pageSize={5}
-              empty={empty}
-              renderItem={(b) => <BarkCard key={b.id} bark={b} />}
-            />
+          <TabsContent key={t.value} value={t.value} className="mt-4 space-y-4">
+            {items.length === 0 ? (
+              empty
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {items.map((b) => (
+                    <BarkCard key={b.id} bark={b} compactActions />
+                  ))}
+                </div>
+                {t.value === "all" && status !== "Exhausted" ? (
+                  <div className="flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={status === "LoadingMore"}
+                      onClick={() => loadMore(10)}
+                    >
+                      {status === "LoadingMore" ? "Loading…" : "Load more"}
+                    </Button>
+                  </div>
+                ) : null}
+              </>
+            )}
           </TabsContent>
         );
       })}

@@ -7,7 +7,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2, Search, User } from "lucide-reac
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { publishCreatorReview } from "@/app/actions/creator-reviews";
-import { listApprovedCreators } from "@/app/actions/creators";
+import { listPublicCreators } from "@/app/actions/creators";
 import { BarkTypeBadge } from "@/components/bark-type-badge";
 import { PersonAvatar } from "@/components/person-avatar";
 import { VerifiedBadge } from "@/components/verified-badge";
@@ -42,7 +42,7 @@ export function CreateReviewWizard({ onBack }: { onBack: () => void }) {
   const [body, setBody] = React.useState("");
 
   React.useEffect(() => {
-    void listApprovedCreators().then((rows) => {
+    void listPublicCreators().then((rows) => {
       setCreators(rows);
       setLoadingCreators(false);
     });
@@ -55,7 +55,8 @@ export function CreateReviewWizard({ onBack }: { onBack: () => void }) {
       .filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
-          c.handle.toLowerCase().includes(q)
+          c.handle.toLowerCase().includes(q) ||
+          (c.externalHandle?.toLowerCase().includes(q) ?? false)
       )
       .slice(0, 12);
   }, [creatorQuery, creators]);

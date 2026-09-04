@@ -48,7 +48,7 @@ import { platformMeta } from "@/lib/meta";
 import type { AccountabilityCase, Bark, SourcePlatform } from "@/lib/types";
 
 const ANY = "any";
-const CODE_RE = /^(BRK|CASE)-\d{4}-\d{3,5}$/i;
+const CODE_RE = /^(TR|BRK|CASE)-\d{4}-\d{3,5}$/i;
 
 function resolveCodePath(
   code: string,
@@ -77,7 +77,7 @@ export function SearchView({
   initialCases: AccountabilityCase[];
   initialBarks: Bark[];
 }) {
-  const barkDocs = useQuery(api.barks.listPublic);
+  const barkDocs = useQuery(api.barks.listPublic, {});
   const publishedBarks = barkDocs ? barkDocs.map(toUiBark) : initialBarks;
   const caseDocs = useQuery(api.cases.list);
   const publishedCases = caseDocs ? caseDocs.map(toUiCase) : initialCases;
@@ -110,7 +110,7 @@ export function SearchView({
     paramOrAny(params.get("date"))
   );
 
-  // Deep-link: /search?q=BRK-… or CASE-… jumps straight to the record.
+  // Deep-link: /search?q=TR-… (or legacy BRK-…) or CASE-… jumps straight to the record.
   React.useEffect(() => {
     const fromUrl = params.get("q")?.trim() ?? "";
     const path = resolveCodePath(fromUrl, publishedBarks, publishedCases);
@@ -265,7 +265,7 @@ export function SearchView({
           onKeyDown={(e) => {
             if (e.key === "Enter") goToExactCode();
           }}
-          placeholder="Search claims, titles, Reaction IDs (BRK-…), Case Codes (CASE-…)…"
+          placeholder="Search claims, titles, Reaction IDs (TR-…), Case Codes (CASE-…)…"
           className="h-11 pl-9"
           aria-label="Search query"
         />
@@ -453,7 +453,7 @@ export function SearchView({
                 <EmptyState
                   icon={Search}
                   title="No reactions match"
-                  description="Try broadening your query or clearing some filters. Paste a full Reaction ID (BRK-…) for a direct match."
+                  description="Try broadening your query or clearing some filters. Paste a full Reaction ID (TR-…) for a direct match."
                 />
               ) : (
                 matchedBarks.map((b) => <BarkCard key={b.id} bark={b} />)

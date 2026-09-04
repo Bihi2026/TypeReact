@@ -9,6 +9,17 @@ export const barkType = v.union(
 
 export const barkStatus = v.union(v.literal("public"), v.literal("draft"));
 
+export const caseCategory = v.union(
+  v.literal("racism"),
+  v.literal("discrimination"),
+  v.literal("harassment"),
+  v.literal("misinformation"),
+  v.literal("fabricated-content"),
+  v.literal("undisclosed-sponsorship"),
+  v.literal("scam"),
+  v.literal("plagiarism")
+);
+
 export const evidenceType = v.union(
   v.literal("screenshot"),
   v.literal("document"),
@@ -40,6 +51,28 @@ export const evidenceItem = v.object({
   storageId: v.optional(v.id("_storage")),
   fileName: v.optional(v.string()),
   contentType: v.optional(v.string()),
+  attestCount: v.optional(v.number()),
+  challengeCount: v.optional(v.number()),
+});
+
+export const contentBlock = v.union(
+  v.object({ kind: v.literal("heading"), text: v.string() }),
+  v.object({ kind: v.literal("paragraph"), text: v.string() }),
+  v.object({
+    kind: v.literal("quote"),
+    text: v.string(),
+    attribution: v.optional(v.string()),
+  }),
+  v.object({ kind: v.literal("list"), items: v.array(v.string()) }),
+  v.object({ kind: v.literal("evidence"), evidenceId: v.string() })
+);
+
+export const barkDialogueTurn = v.object({
+  role: v.union(v.literal("creator"), v.literal("author")),
+  content: v.string(),
+  respondedAt: v.number(),
+  verified: v.boolean(),
+  evidence: v.optional(v.array(evidenceItem)),
 });
 
 export const evidenceUploadFields = {
@@ -87,6 +120,15 @@ export const webhookEventFields = {
   at: v.number(),
 };
 
+export const caseCreatorResponse = v.object({
+  content: v.string(),
+  respondedAt: v.number(),
+  verified: v.boolean(),
+});
+
+/** Same shape as case official creator responses — reused on barks. */
+export const barkCreatorResponse = caseCreatorResponse;
+
 export const barkDocFields = {
   code: v.string(),
   type: barkType,
@@ -112,6 +154,36 @@ export const barkDocFields = {
   saves: v.number(),
   views: v.number(),
   country: v.optional(v.string()),
+  creatorResponse: v.optional(barkCreatorResponse),
+  creatorDialogue: v.optional(v.array(barkDialogueTurn)),
+  topics: v.optional(v.array(caseCategory)),
+  contentBlocks: v.optional(v.array(contentBlock)),
+  version: v.optional(v.number()),
+  amendedAt: v.optional(v.number()),
+  promotedCaseCode: v.optional(v.string()),
+  quotedBarkCode: v.optional(v.string()),
+  claims: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        text: v.string(),
+        status: v.union(
+          v.literal("supported"),
+          v.literal("disputed"),
+          v.literal("unverified"),
+          v.literal("refuted")
+        ),
+        evidenceIndexes: v.array(v.number()),
+      })
+    )
+  ),
+};
+
+export const barkTopicLinkFields = {
+  barkId: v.id("barks"),
+  topic: caseCategory,
+  status: barkStatus,
+  publishedAt: v.number(),
 };
 
 export const creatorReviewFields = {
@@ -158,6 +230,151 @@ export const barkSaveFields = {
   barkId: v.id("barks"),
   clerkUserId: v.string(),
   createdAt: v.number(),
+  collectionId: v.optional(v.id("saveCollections")),
+  note: v.optional(v.string()),
+};
+
+export const saveCollectionFields = {
+  clerkUserId: v.string(),
+  name: v.string(),
+  createdAt: v.number(),
+};
+
+export const evidenceRequestStatus = v.union(
+  v.literal("open"),
+  v.literal("resolved"),
+  v.literal("dismissed")
+);
+
+export const evidenceRequestFields = {
+  barkId: v.id("barks"),
+  blockIndex: v.number(),
+  blockHash: v.string(),
+  claimSnippet: v.string(),
+  note: v.optional(v.string()),
+  requesterClerkId: v.string(),
+  requesterName: v.string(),
+  status: evidenceRequestStatus,
+  createdAt: v.number(),
+  resolvedAt: v.optional(v.number()),
+  resolvedByClerkId: v.optional(v.string()),
+};
+
+export const userMuteKind = v.union(v.literal("author"), v.literal("topic"));
+
+export const userMuteFields = {
+  clerkUserId: v.string(),
+  kind: userMuteKind,
+  targetClerkId: v.optional(v.string()),
+  topic: v.optional(caseCategory),
+  createdAt: v.number(),
+};
+
+export const contentVisitFields = {
+  clerkUserId: v.string(),
+  targetKind: v.union(v.literal("bark"), v.literal("case")),
+  targetCode: v.string(),
+  lastVisitedAt: v.number(),
+};
+
+export const barkCommunityNoteFields = {
+  barkId: v.id("barks"),
+  authorClerkId: v.string(),
+  authorName: v.string(),
+  text: v.string(),
+  createdAt: v.number(),
+  helpfulCount: v.number(),
+  notHelpfulCount: v.number(),
+};
+
+export const barkCommunityNoteVoteFields = {
+  noteId: v.id("barkCommunityNotes"),
+  clerkUserId: v.string(),
+  vote: v.union(v.literal("helpful"), v.literal("not")),
+  createdAt: v.number(),
+};
+
+export const researchCircleAnchorKind = v.union(
+  v.literal("case"),
+  v.literal("topic")
+);
+
+export const researchCircleFields = {
+  name: v.string(),
+  description: v.optional(v.string()),
+  anchorKind: researchCircleAnchorKind,
+  caseCode: v.optional(v.string()),
+  topic: v.optional(caseCategory),
+  ownerClerkId: v.string(),
+  createdAt: v.number(),
+};
+
+export const researchCircleMemberFields = {
+  circleId: v.id("researchCircles"),
+  clerkUserId: v.string(),
+  role: v.union(v.literal("owner"), v.literal("member")),
+  joinedAt: v.number(),
+};
+
+export const researchCirclePostFields = {
+  circleId: v.id("researchCircles"),
+  authorClerkId: v.string(),
+  authorName: v.string(),
+  body: v.string(),
+  createdAt: v.number(),
+  editedAt: v.optional(v.number()),
+  attachments: v.optional(
+    v.array(
+      v.object({
+        storageId: v.id("_storage"),
+        fileName: v.optional(v.string()),
+        contentType: v.optional(v.string()),
+      })
+    )
+  ),
+};
+
+export const researchCircleInviteStatus = v.union(
+  v.literal("pending"),
+  v.literal("accepted"),
+  v.literal("declined"),
+  v.literal("cancelled")
+);
+
+export const researchCircleInviteFields = {
+  circleId: v.id("researchCircles"),
+  inviterClerkId: v.string(),
+  inviteeClerkId: v.string(),
+  inviteeUsername: v.string(),
+  status: researchCircleInviteStatus,
+  createdAt: v.number(),
+  respondedAt: v.optional(v.number()),
+};
+
+export const barkViewFields = {
+  barkId: v.id("barks"),
+  viewerKey: v.string(),
+  dayKey: v.string(),
+};
+
+export const barkVersionFields = {
+  barkId: v.id("barks"),
+  version: v.number(),
+  title: v.string(),
+  body: v.string(),
+  excerpt: v.string(),
+  contentBlocks: v.optional(v.array(contentBlock)),
+  changeNote: v.string(),
+  authorClerkId: v.string(),
+  createdAt: v.number(),
+};
+
+export const barkEvidenceVoteFields = {
+  barkId: v.id("barks"),
+  evidenceIndex: v.number(),
+  clerkUserId: v.string(),
+  vote: v.union(v.literal("attest"), v.literal("challenge")),
+  createdAt: v.number(),
 };
 
 export const barkStickerId = v.union(
@@ -194,6 +411,7 @@ export const barkReportFields = {
   details: v.string(),
   reporterClerkId: v.string(),
   createdAt: v.number(),
+  status: v.optional(v.union(v.literal("open"), v.literal("dismissed"))),
 };
 
 export const caseFollowFields = {
@@ -234,10 +452,12 @@ export const notificationCategory = v.union(
   v.literal("reply"),
   v.literal("mention"),
   v.literal("follower"),
+  v.literal("following"),
   v.literal("creator-response"),
   v.literal("evidence"),
   v.literal("verification"),
-  v.literal("message")
+  v.literal("message"),
+  v.literal("circle")
 );
 
 export const notificationFields = {
@@ -256,6 +476,7 @@ export const notificationPrefsFields = {
   reply: v.boolean(),
   mention: v.boolean(),
   follower: v.boolean(),
+  followingActivity: v.optional(v.boolean()),
   creatorResponse: v.boolean(),
   evidence: v.boolean(),
   verification: v.boolean(),
@@ -263,6 +484,8 @@ export const notificationPrefsFields = {
   digestWeekly: v.boolean(),
   digestCaseEmail: v.boolean(),
   message: v.optional(v.boolean()),
+  circle: v.optional(v.boolean()),
+  emailEnabled: v.optional(v.boolean()),
   unreadCount: v.number(),
 };
 
@@ -272,6 +495,7 @@ export const caseReportFields = {
   details: v.string(),
   reporterClerkId: v.string(),
   createdAt: v.number(),
+  status: v.optional(v.union(v.literal("open"), v.literal("dismissed"))),
 };
 
 export const caseStatus = v.union(
@@ -280,17 +504,6 @@ export const caseStatus = v.union(
   v.literal("responded"),
   v.literal("resolved"),
   v.literal("archived")
-);
-
-export const caseCategory = v.union(
-  v.literal("racism"),
-  v.literal("discrimination"),
-  v.literal("harassment"),
-  v.literal("misinformation"),
-  v.literal("fabricated-content"),
-  v.literal("undisclosed-sponsorship"),
-  v.literal("scam"),
-  v.literal("plagiarism")
 );
 
 export const claimStatus = v.union(
@@ -333,12 +546,6 @@ export const caseCommunityNote = v.object({
   authorName: v.string(),
   text: v.string(),
   postedAt: v.number(),
-});
-
-export const caseCreatorResponse = v.object({
-  content: v.string(),
-  respondedAt: v.number(),
-  verified: v.boolean(),
 });
 
 export const caseDocFields = {
@@ -416,6 +623,36 @@ export const creatorDocFields = {
   responseRate: v.number(),
   externalPlatform: v.optional(sourcePlatform),
   externalHandle: v.optional(v.string()),
+  profileImageUrl: v.optional(v.string()),
+  officialResponseCount: v.optional(v.number()),
+  linkedByClerkId: v.optional(v.string()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+};
+
+export const creatorVerificationStatus = v.union(
+  v.literal("draft"),
+  v.literal("submitted"),
+  v.literal("approved"),
+  v.literal("rejected")
+);
+
+export const emergencyContactFields = v.object({
+  name: v.string(),
+  phone: v.string(),
+  relationship: v.string(),
+});
+
+export const creatorVerificationFields = {
+  creatorId: v.id("creators"),
+  applicantClerkId: v.string(),
+  legalName: v.string(),
+  email: v.string(),
+  phone: v.string(),
+  verificationId: v.string(),
+  proofPostUrl: v.optional(v.string()),
+  emergencyContacts: v.array(emergencyContactFields),
+  status: creatorVerificationStatus,
   createdAt: v.number(),
   updatedAt: v.number(),
 };
@@ -583,6 +820,7 @@ export const storyReportFields = {
   details: v.string(),
   reporterClerkId: v.string(),
   createdAt: v.number(),
+  status: v.optional(v.union(v.literal("open"), v.literal("dismissed"))),
 };
 
 export const storyReadFields = {
@@ -627,7 +865,8 @@ export const contestJudgmentFields = {
 export const messageSubjectKind = v.union(
   v.literal("bark"),
   v.literal("case"),
-  v.literal("creator")
+  v.literal("creator"),
+  v.literal("direct")
 );
 
 export const messageThreadFields = {
@@ -657,10 +896,20 @@ export const messageFields = {
   senderClerkId: v.string(),
   body: v.string(),
   createdAt: v.number(),
+  attachments: v.optional(
+    v.array(
+      v.object({
+        storageId: v.id("_storage"),
+        fileName: v.optional(v.string()),
+        contentType: v.optional(v.string()),
+      })
+    )
+  ),
 };
 
 export const moderationEventKind = v.union(
   v.literal("report"),
+  v.literal("report_dismiss"),
   v.literal("creator_approve"),
   v.literal("creator_reject"),
   v.literal("writer_approve"),
@@ -699,4 +948,46 @@ export const userSettingsFields = {
   contentLanguages: v.optional(contentLanguages),
   autoTranslate: v.optional(v.boolean()),
   updatedAt: v.number(),
+};
+
+export const learningResourceType = v.union(
+  v.literal("video"),
+  v.literal("article"),
+  v.literal("download")
+);
+
+export const learningCategory = v.union(
+  v.literal("getting-started"),
+  v.literal("evidence"),
+  v.literal("reactions"),
+  v.literal("cases"),
+  v.literal("creators"),
+  v.literal("platform")
+);
+
+export const learningResourceStatus = v.union(
+  v.literal("draft"),
+  v.literal("published")
+);
+
+export const learningResourceFields = {
+  slug: v.string(),
+  title: v.string(),
+  description: v.string(),
+  type: learningResourceType,
+  category: learningCategory,
+  status: learningResourceStatus,
+  sortOrder: v.number(),
+  durationMinutes: v.optional(v.number()),
+  thumbnailUrl: v.optional(v.string()),
+  videoUrl: v.optional(v.string()),
+  videoPlatform: v.optional(sourcePlatform),
+  contentBlocks: v.optional(v.array(contentBlock)),
+  fileStorageId: v.optional(v.id("_storage")),
+  fileName: v.optional(v.string()),
+  fileContentType: v.optional(v.string()),
+  externalDownloadUrl: v.optional(v.string()),
+  publishedAt: v.optional(v.number()),
+  updatedAt: v.number(),
+  authorClerkId: v.string(),
 };

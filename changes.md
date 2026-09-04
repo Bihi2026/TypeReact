@@ -1,7 +1,7 @@
 
 ##Color Update##
 
-Replace the current white background with a warm light ivory: #F2F1EC.
+Replace the page base with LinkedIn’s off-white canvas: #F4F2EE (also known as #F3F2EF).
 
 Remove the green/teal accent color completely.
 
@@ -11,9 +11,11 @@ Use the orange consistently for buttons, active navigation, highlighted text, ic
 
 Keep the main text near-black for strong contrast.
 
-Keep cards and input areas white or slightly lighter than the ivory background so they remain visually separated.
+Keep cards and popovers pure white (#FFFFFF) so they lift off the tinted canvas.
+
+Form control borders use the hairline gray (#E0DFDC) via --input so selects/inputs stay visible on white cards.
 
 Do not change the logo, name, wording, layout, or functionality based on these instructions.
 
 
-The overall color direction should be: warm ivory + near-black + burnt orange. It should feel bold, warm, editorial, and less sterile than the current white-and-green design.
+The overall color direction should be: LinkedIn off-white canvas (#F4F2EE) + white cards + near-black + burnt orange.

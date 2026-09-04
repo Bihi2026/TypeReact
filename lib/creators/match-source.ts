@@ -48,6 +48,21 @@ export function platformHandleFromUrl(
     platform === "instagram" ||
     platform === "facebook"
   ) {
+    if (platform === "youtube") {
+      const fromAt = atHandleFromPath(url);
+      if (fromAt) return fromAt;
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts[0] === "c" && parts[1]) return parts[1].toLowerCase();
+      if (parts[0] === "user" && parts[1]) return parts[1].toLowerCase();
+      return null;
+    }
+    if (platform === "instagram" || platform === "facebook") {
+      const fromAt = atHandleFromPath(url);
+      if (fromAt) return fromAt;
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length === 1) return parts[0].toLowerCase();
+      return null;
+    }
     return atHandleFromPath(url);
   }
 

@@ -6,6 +6,7 @@ import { useConvexAuth, useQuery } from "convex/react";
 import { Card } from "@/components/ui/card";
 import { api } from "@/convex/_generated/api";
 import { formatNumber } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 function formatValue(value: number, capped: boolean) {
   return `${formatNumber(value)}${capped ? "+" : ""}`;
@@ -17,7 +18,11 @@ function deltaText(stats: unknown, value: string | undefined) {
   return value ?? "Loading…";
 }
 
-export function AdminStats() {
+export function AdminStats({
+  onOpenReports,
+}: {
+  onOpenReports?: () => void;
+}) {
   const { isAuthenticated } = useConvexAuth();
   const nowMs = React.useMemo(() => Date.now(), []);
   const stats = useQuery(
@@ -60,6 +65,7 @@ export function AdminStats() {
         ? formatValue(stats.openReports.value, stats.openReports.capped)
         : "—",
       delta: deltaText(stats, stats?.openReportsDelta),
+      onClick: onOpenReports,
     },
   ];
 
@@ -67,8 +73,28 @@ export function AdminStats() {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {cards.map((s) => {
         const Icon = s.icon;
+        const clickable = "onClick" in s && Boolean(s.onClick);
         return (
-          <Card key={s.label} className="gap-1 p-4">
+          <Card
+            key={s.label}
+            className={cn(
+              "gap-1 p-4",
+              clickable && "cursor-pointer transition-colors hover:bg-muted/40"
+            )}
+            role={clickable ? "button" : undefined}
+            tabIndex={clickable ? 0 : undefined}
+            onClick={clickable ? s.onClick : undefined}
+            onKeyDown={
+              clickable
+                ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      s.onClick?.();
+                    }
+                  }
+                : undefined
+            }
+          >
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">{s.label}</p>
               <Icon className="size-4 text-primary" aria-hidden />

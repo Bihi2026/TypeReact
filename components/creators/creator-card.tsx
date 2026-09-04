@@ -6,7 +6,9 @@ import { VerifiedBadge } from "@/components/verified-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { countries } from "@/lib/data";
+import { BRAND_NAME, REACTION_PLURAL } from "@/lib/brand";
 import { formatNumber, gradientFor } from "@/lib/format";
+import { platformMeta } from "@/lib/meta";
 import type { Creator } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -26,13 +28,19 @@ export function CreatorCard({
   className?: string;
 }) {
   const country = countries.find((c) => c.code === creator.country);
+  const handleLabel = creator.externalHandle
+    ? `@${creator.externalHandle}`
+    : `@${creator.handle}`;
+  const isUnclaimed =
+    creator.status === "unclaimed" || !creator.hasTeaBarksProfile;
+  const primaryPlatform = creator.externalPlatform ?? creator.platforms[0];
 
   return (
     <Link
       href={`/creators/${creator.handle}`}
       className={cn("group block h-full", className)}
     >
-      <Card className="h-full gap-0 overflow-hidden p-0 transition-all group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-md">
+      <Card className="h-full gap-0 overflow-hidden p-0 transition-colors group-hover:border-primary/40">
         <div
           className={cn(
             "relative h-20 bg-gradient-to-br sm:h-24",
@@ -42,21 +50,30 @@ export function CreatorCard({
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.18),transparent_55%)]" />
           <div className="absolute right-3 top-3 flex gap-1.5">
-            {creator.hasTeaBarksProfile ? (
+            {primaryPlatform && (
               <Badge
                 variant="secondary"
                 className="border-0 bg-background/90 text-[10px] text-foreground backdrop-blur"
               >
-                On TypeReact
+                <PlatformIcon platform={primaryPlatform} className="mr-1 size-3" />
+                {platformMeta[primaryPlatform].label}
               </Badge>
-            ) : (
+            )}
+            {isUnclaimed ? (
               <Badge
                 variant="secondary"
-                className="border-0 bg-background/80 text-[10px] text-muted-foreground backdrop-blur"
+                className="border-0 bg-background/80 text-[10px] uppercase tracking-wide text-muted-foreground backdrop-blur"
               >
                 Unclaimed
               </Badge>
-            )}
+            ) : creator.hasTeaBarksProfile ? (
+              <Badge
+                variant="secondary"
+                className="border-0 bg-background/90 text-[10px] text-foreground backdrop-blur"
+              >
+                On {BRAND_NAME}
+              </Badge>
+            ) : null}
           </div>
         </div>
 
@@ -78,7 +95,7 @@ export function CreatorCard({
               <ArrowUpRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
             </div>
             <p className="text-xs text-muted-foreground">
-              @{creator.handle}
+              {handleLabel}
               {country ? ` · ${country.flag} ${country.name}` : ""}
             </p>
           </div>
@@ -115,7 +132,9 @@ export function CreatorCard({
                 <MessageSquareText className="size-3 text-muted-foreground" />
                 {formatNumber(creator.totalBarksReceived)}
               </p>
-              <p className="text-muted-foreground">reactions</p>
+              <p className="text-muted-foreground">
+                {BRAND_NAME} {REACTION_PLURAL.toLowerCase()}
+              </p>
             </div>
             <div>
               <p
@@ -131,7 +150,7 @@ export function CreatorCard({
           </div>
 
           {featured && (
-            <p className="rounded-md bg-muted/60 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground">
               High discussion volume · {creator.totalSources} indexed sources
             </p>
           )}

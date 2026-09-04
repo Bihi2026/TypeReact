@@ -1,5 +1,9 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from "convex/server";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   mutation,
   query,
@@ -10,10 +14,17 @@ import { clerkUserId, requireIdentity } from "./lib/auth";
 import { displayName, notifyMany } from "./lib/notify";
 import { messageSubjectKind } from "./lib/validators";
 
+const startSubjectKind = v.union(
+  v.literal("bark"),
+  v.literal("case"),
+  v.literal("creator")
+);
+
 const inboxItem = v.object({
   threadId: v.id("messageThreads"),
   otherClerkId: v.string(),
   otherName: v.string(),
+  otherUsername: v.union(v.string(), v.null()),
   otherImageUrl: v.union(v.string(), v.null()),
   subjectKind: messageSubjectKind,
   subjectTitle: v.string(),
@@ -23,6 +34,13 @@ const inboxItem = v.object({
   unreadCount: v.number(),
 });
 
+const messageAttachment = v.object({
+  storageId: v.id("_storage"),
+  fileName: v.optional(v.string()),
+  contentType: v.optional(v.string()),
+  url: v.union(v.string(), v.null()),
+});
+
 const messageItem = v.object({
   _id: v.id("messages"),
   senderClerkId: v.string(),
@@ -30,21 +48,26 @@ const messageItem = v.object({
   createdAt: v.number(),
   mine: v.boolean(),
   read: v.boolean(),
+  attachments: v.array(messageAttachment),
 });
 
 function pairKey(
   clerkA: string,
   clerkB: string,
-  kind: "bark" | "case" | "creator",
+  kind: "bark" | "case" | "creator" | "direct",
   subjectId: string
 ) {
   const [left, right] = clerkA < clerkB ? [clerkA, clerkB] : [clerkB, clerkA];
   return `${left}:${right}:${kind}:${subjectId}`;
 }
 
-function previewOf(body: string) {
+function previewOf(body: string, attachments?: Array<{ fileName?: string }>) {
   const text = body.trim();
-  return text.length > 140 ? `${text.slice(0, 137)}…` : text;
+  if (text) {
+    return text.length > 140 ? `${text.slice(0, 137)}…` : text;
+  }
+  const first = attachments?.[0]?.fileName?.trim();
+  return first ? `📎 ${first}` : "📎 Attachment";
 }
 
 async function membershipFor(
@@ -62,13 +85,20 @@ async function membershipFor(
 
 async function subjectMeta(
   ctx: QueryCtx | MutationCtx,
-  thread: {
-    subjectKind: "bark" | "case" | "creator";
-    barkId?: Id<"barks">;
-    caseId?: Id<"cases">;
-    creatorId?: Id<"creators">;
-  }
+  thread: Doc<"messageThreads">,
+  otherClerkId: string
 ) {
+  if (thread.subjectKind === "direct") {
+    const other = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", otherClerkId))
+      .unique();
+    const slug = other?.username?.trim() || otherClerkId;
+    return {
+      subjectTitle: "Direct",
+      subjectHref: `/profile/${encodeURIComponent(slug)}`,
+    };
+  }
   if (thread.subjectKind === "bark" && thread.barkId) {
     const bark = await ctx.db.get(thread.barkId);
     if (bark) {
@@ -100,6 +130,114 @@ async function subjectMeta(
     return { subjectTitle: "Deleted creator", subjectHref: "/creators" };
   }
   return { subjectTitle: "Conversation", subjectHref: "/messages" };
+}
+
+async function toInboxItem(
+  ctx: QueryCtx | MutationCtx,
+  row: Doc<"messageMemberships">
+) {
+  const thread = await ctx.db.get(row.threadId);
+  if (!thread) return null;
+  const other = await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", row.otherClerkId))
+    .unique();
+  const subject = await subjectMeta(ctx, thread, row.otherClerkId);
+  const username = other?.username?.trim() || null;
+  return {
+    threadId: row.threadId,
+    otherClerkId: row.otherClerkId,
+    otherName: other?.name?.trim() || "Member",
+    otherUsername: username,
+    otherImageUrl: other?.imageUrl ?? null,
+    subjectKind: thread.subjectKind,
+    subjectTitle: subject.subjectTitle,
+    subjectHref: subject.subjectHref,
+    lastPreview: row.lastPreview,
+    lastMessageAt: row.lastMessageAt,
+    unreadCount: row.unreadCount,
+  };
+}
+
+async function toMessageItem(
+  ctx: QueryCtx,
+  row: Doc<"messages">,
+  clerkId: string,
+  otherReadAt: number
+) {
+  const attachments = await Promise.all(
+    (row.attachments ?? []).map(async (file) => ({
+      storageId: file.storageId,
+      fileName: file.fileName,
+      contentType: file.contentType,
+      url: await ctx.storage.getUrl(file.storageId),
+    }))
+  );
+  return {
+    _id: row._id,
+    senderClerkId: row.senderClerkId,
+    body: row.body,
+    createdAt: row.createdAt,
+    mine: row.senderClerkId === clerkId,
+    read: row.senderClerkId === clerkId && otherReadAt >= row.createdAt,
+    attachments,
+  };
+}
+
+async function openPairThread(
+  ctx: MutationCtx,
+  me: string,
+  otherClerkId: string,
+  kind: "bark" | "case" | "creator" | "direct",
+  subjectId: string,
+  extra: {
+    barkId?: Id<"barks">;
+    caseId?: Id<"cases">;
+    creatorId?: Id<"creators">;
+  }
+) {
+  if (otherClerkId === me) {
+    throw new Error("You cannot message yourself");
+  }
+  const key = pairKey(me, otherClerkId, kind, subjectId);
+  const existing = await ctx.db
+    .query("messageThreads")
+    .withIndex("by_pairKey", (q) => q.eq("pairKey", key))
+    .unique();
+  if (existing) return existing._id;
+  const now = Date.now();
+  const [clerkA, clerkB] =
+    me < otherClerkId ? [me, otherClerkId] : [otherClerkId, me];
+  const threadId = await ctx.db.insert("messageThreads", {
+    pairKey: key,
+    subjectKind: kind,
+    ...(extra.barkId ? { barkId: extra.barkId } : {}),
+    ...(extra.caseId ? { caseId: extra.caseId } : {}),
+    ...(extra.creatorId ? { creatorId: extra.creatorId } : {}),
+    clerkA,
+    clerkB,
+    lastMessageAt: now,
+    lastPreview: "",
+  });
+  await ctx.db.insert("messageMemberships", {
+    threadId,
+    clerkUserId: me,
+    otherClerkId,
+    lastMessageAt: now,
+    lastPreview: "",
+    unreadCount: 0,
+    lastReadAt: now,
+  });
+  await ctx.db.insert("messageMemberships", {
+    threadId,
+    clerkUserId: otherClerkId,
+    otherClerkId: me,
+    lastMessageAt: now,
+    lastPreview: "",
+    unreadCount: 0,
+    lastReadAt: 0,
+  });
+  return threadId;
 }
 
 async function resolveOtherParty(
@@ -186,27 +324,55 @@ export const listMine = query({
       .take(50);
     const result = [];
     for (const row of rows) {
-      const thread = await ctx.db.get(row.threadId);
-      if (!thread) continue;
-      const other = await ctx.db
-        .query("users")
-        .withIndex("by_clerkId", (q) => q.eq("clerkId", row.otherClerkId))
-        .unique();
-      const subject = await subjectMeta(ctx, thread);
-      result.push({
-        threadId: row.threadId,
-        otherClerkId: row.otherClerkId,
-        otherName: other?.name?.trim() || "Member",
-        otherImageUrl: other?.imageUrl ?? null,
-        subjectKind: thread.subjectKind,
-        subjectTitle: subject.subjectTitle,
-        subjectHref: subject.subjectHref,
-        lastPreview: row.lastPreview,
-        lastMessageAt: row.lastMessageAt,
-        unreadCount: row.unreadCount,
-      });
+      const item = await toInboxItem(ctx, row);
+      if (item) result.push(item);
     }
     return result;
+  },
+});
+
+export const listMinePage = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    unreadOnly: v.optional(v.boolean()),
+  },
+  returns: paginationResultValidator(inboxItem),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+    const clerkId = clerkUserId(identity);
+    const base = ctx.db
+      .query("messageMemberships")
+      .withIndex("by_user_last", (q) => q.eq("clerkUserId", clerkId))
+      .order("desc");
+    const page = await (args.unreadOnly
+      ? base.filter((q) => q.gt(q.field("unreadCount"), 0))
+      : base
+    ).paginate(args.paginationOpts);
+    const items = [];
+    for (const row of page.page) {
+      const item = await toInboxItem(ctx, row);
+      if (item) items.push(item);
+    }
+    return { ...page, page: items };
+  },
+});
+
+export const getInboxItem = query({
+  args: { threadId: v.id("messageThreads") },
+  returns: v.union(inboxItem, v.null()),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const mine = await membershipFor(
+      ctx,
+      args.threadId,
+      clerkUserId(identity)
+    );
+    if (!mine) return null;
+    return await toInboxItem(ctx, mine);
   },
 });
 
@@ -226,14 +392,41 @@ export const listMessages = query({
       .withIndex("by_thread_created", (q) => q.eq("threadId", args.threadId))
       .order("desc")
       .take(50);
-    return rows.reverse().map((row) => ({
-      _id: row._id,
-      senderClerkId: row.senderClerkId,
-      body: row.body,
-      createdAt: row.createdAt,
-      mine: row.senderClerkId === clerkId,
-      read: row.senderClerkId === clerkId && otherReadAt >= row.createdAt,
-    }));
+    return await Promise.all(
+      rows.reverse().map((row) => toMessageItem(ctx, row, clerkId, otherReadAt))
+    );
+  },
+});
+
+export const listMessagesPage = query({
+  args: {
+    threadId: v.id("messageThreads"),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(messageItem),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+    const clerkId = clerkUserId(identity);
+    const mine = await membershipFor(ctx, args.threadId, clerkId);
+    if (!mine) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+    const other = await membershipFor(ctx, args.threadId, mine.otherClerkId);
+    const otherReadAt = other?.lastReadAt ?? 0;
+    const page = await ctx.db
+      .query("messages")
+      .withIndex("by_thread_created", (q) => q.eq("threadId", args.threadId))
+      .order("desc")
+      .paginate(args.paginationOpts);
+    return {
+      ...page,
+      page: await Promise.all(
+        page.page.map((row) => toMessageItem(ctx, row, clerkId, otherReadAt))
+      ),
+    };
   },
 });
 
@@ -258,7 +451,7 @@ export const unreadCount = query({
 
 export const startOrOpen = mutation({
   args: {
-    kind: messageSubjectKind,
+    kind: startSubjectKind,
     barkCode: v.optional(v.string()),
     caseCode: v.optional(v.string()),
     creatorHandle: v.optional(v.string()),
@@ -268,50 +461,36 @@ export const startOrOpen = mutation({
     const identity = await requireIdentity(ctx);
     const me = clerkUserId(identity);
     const resolved = await resolveOtherParty(ctx, me, args);
-    if (resolved.otherClerkId === me) {
-      throw new Error("You cannot message yourself");
-    }
-    const key = pairKey(me, resolved.otherClerkId, args.kind, resolved.subjectId);
-    const existing = await ctx.db
-      .query("messageThreads")
-      .withIndex("by_pairKey", (q) => q.eq("pairKey", key))
-      .unique();
-    if (existing) return existing._id;
-    const now = Date.now();
-    const [clerkA, clerkB] =
-      me < resolved.otherClerkId
-        ? [me, resolved.otherClerkId]
-        : [resolved.otherClerkId, me];
-    const threadId = await ctx.db.insert("messageThreads", {
-      pairKey: key,
-      subjectKind: args.kind,
-      ...(resolved.barkId ? { barkId: resolved.barkId } : {}),
-      ...(resolved.caseId ? { caseId: resolved.caseId } : {}),
-      ...(resolved.creatorId ? { creatorId: resolved.creatorId } : {}),
-      clerkA,
-      clerkB,
-      lastMessageAt: now,
-      lastPreview: "",
-    });
-    await ctx.db.insert("messageMemberships", {
-      threadId,
-      clerkUserId: me,
-      otherClerkId: resolved.otherClerkId,
-      lastMessageAt: now,
-      lastPreview: "",
-      unreadCount: 0,
-      lastReadAt: now,
-    });
-    await ctx.db.insert("messageMemberships", {
-      threadId,
-      clerkUserId: resolved.otherClerkId,
-      otherClerkId: me,
-      lastMessageAt: now,
-      lastPreview: "",
-      unreadCount: 0,
-      lastReadAt: 0,
-    });
-    return threadId;
+    return await openPairThread(
+      ctx,
+      me,
+      resolved.otherClerkId,
+      args.kind,
+      resolved.subjectId,
+      {
+        barkId: resolved.barkId,
+        caseId: resolved.caseId,
+        creatorId: resolved.creatorId,
+      }
+    );
+  },
+});
+
+export const startDirect = mutation({
+  args: { username: v.string() },
+  returns: v.id("messageThreads"),
+  handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    const me = clerkUserId(identity);
+    const username = args.username.trim().replace(/^@/, "").toLowerCase();
+    if (!username) throw new Error("Username is required");
+    const matches = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("username", username))
+      .take(1);
+    const other = matches[0];
+    if (!other) throw new Error("Member not found");
+    return await openPairThread(ctx, me, other.clerkId, "direct", "direct", {});
   },
 });
 
@@ -319,24 +498,51 @@ export const send = mutation({
   args: {
     threadId: v.id("messageThreads"),
     body: v.string(),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id("_storage"),
+          fileName: v.optional(v.string()),
+          contentType: v.optional(v.string()),
+        })
+      )
+    ),
   },
   returns: v.id("messages"),
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
     const me = clerkUserId(identity);
     const body = args.body.trim();
-    if (!body) throw new Error("Write a message first");
+    const attachments = (args.attachments ?? []).slice(0, 5);
+    if (!body && attachments.length === 0) {
+      throw new Error("Write a message or attach a file");
+    }
     const mine = await membershipFor(ctx, args.threadId, me);
     if (!mine) throw new Error("Thread not found");
     const other = await membershipFor(ctx, args.threadId, mine.otherClerkId);
     if (!other) throw new Error("Thread not found");
+
+    for (const file of attachments) {
+      const upload = await ctx.db
+        .query("evidenceUploads")
+        .withIndex("by_storageId", (q) => q.eq("storageId", file.storageId))
+        .unique();
+      if (!upload || upload.uploaderClerkId !== me) {
+        throw new Error("Attachment is not yours");
+      }
+      if (!upload.bound) {
+        await ctx.db.patch(upload._id, { bound: true });
+      }
+    }
+
     const now = Date.now();
-    const preview = previewOf(body);
+    const preview = previewOf(body, attachments);
     const messageId = await ctx.db.insert("messages", {
       threadId: args.threadId,
       senderClerkId: me,
       body,
       createdAt: now,
+      ...(attachments.length > 0 ? { attachments } : {}),
     });
     await ctx.db.patch(args.threadId, {
       lastMessageAt: now,

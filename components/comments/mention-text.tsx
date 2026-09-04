@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
 
-const CODE_RE = /(@?(?:BRK|CASE)-\d{4}-\d{3,5})/gi;
+const CODE_RE = /(@?(?:TR|BRK|CASE)-\d{4}-\d{3,5})/gi;
 const MENTION_RE = /(@[a-zA-Z0-9_]{2,32})/g;
 
 function MentionSpans({ text }: { text: string }) {
@@ -17,7 +17,7 @@ function MentionSpans({ text }: { text: string }) {
         return (
           <Link
             key={i}
-            href={`/creators/${handle}`}
+            href={`/profile/${handle}`}
             className="font-medium text-primary hover:underline"
           >
             @{handle}
@@ -39,7 +39,7 @@ export function MentionText({
   return (
     <span className={className}>
       {parts.map((part, i) => {
-        const match = part.match(/^@?((?:BRK|CASE)-\d{4}-\d{3,5})$/i);
+        const match = part.match(/^@?((?:TR|BRK|CASE)-\d{4}-\d{3,5})$/i);
         if (!match) {
           return <MentionSpans key={i} text={part} />;
         }

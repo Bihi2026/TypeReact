@@ -211,3 +211,38 @@ export const getBySlug = query({
     };
   },
 });
+
+export const searchByUsername = query({
+  args: { prefix: v.string() },
+  returns: v.array(
+    v.object({
+      username: v.string(),
+      name: v.string(),
+      clerkId: v.string(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const prefix = args.prefix.trim().toLowerCase().replace(/^@/, "");
+    const me = clerkUserId(identity);
+    const rows = await ctx.db.query("users").take(200);
+    const hits: { username: string; name: string; clerkId: string }[] = [];
+    for (const row of rows) {
+      const username = row.username?.trim();
+      if (!username) continue;
+      if (row.clerkId === me) continue;
+      const key = username.toLowerCase();
+      if (prefix && !key.startsWith(prefix) && !row.name.toLowerCase().startsWith(prefix)) {
+        continue;
+      }
+      hits.push({
+        username: key,
+        name: row.name || username,
+        clerkId: row.clerkId,
+      });
+      if (hits.length >= 10) break;
+    }
+    return hits;
+  },
+});

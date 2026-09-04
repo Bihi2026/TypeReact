@@ -12,6 +12,7 @@ import {
   Clock3,
   PenLine,
   ShieldCheck,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -44,9 +45,64 @@ import { cn } from "@/lib/utils";
 
 const STEPS = ["Profile", "Sample", "Commitments", "Review"] as const;
 const MIN_SAMPLE_WORDS = 100;
+const PREVIEW_WORDS = 120;
 
 type WriterLanguage = "en" | "ar" | "es" | "fr" | "hi";
 type WriterCadence = "weekly" | "biweekly" | "monthly" | "complete";
+
+const cadenceLabel: Record<WriterCadence, string> = {
+  weekly: "Weekly parts",
+  biweekly: "Every two weeks",
+  monthly: "Monthly",
+  complete: "Completed works only",
+};
+
+function wordCount(text: string): number {
+  return text.trim() ? text.trim().split(/\s+/).length : 0;
+}
+
+function sampleExcerpt(text: string, limit = PREVIEW_WORDS): string {
+  const parts = text.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= limit) return text.trim();
+  return `${parts.slice(0, limit).join(" ")}…`;
+}
+
+function ApplyPageChrome({
+  children,
+  bare = false,
+}: {
+  children: React.ReactNode;
+  bare?: boolean;
+}) {
+  return (
+    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" className="-ml-2 w-fit" asChild>
+          <Link href="/stories">
+            <ArrowLeft /> Back to stories
+          </Link>
+        </Button>
+        {!bare ? (
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <PenLine className="size-5 text-primary" aria-hidden />
+            </span>
+            <div className="min-w-0 space-y-1">
+              <h1 className="text-2xl font-bold tracking-tight">
+                Become a Writer
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Publish serialized stories, join contests, and build readers.
+                One short application and one writing sample.
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </div>
+      {children}
+    </div>
+  );
+}
 
 function Stepper({ step }: { step: number }) {
   return (
@@ -82,21 +138,33 @@ function Stepper({ step }: { step: number }) {
         value={((step + 1) / STEPS.length) * 100}
         aria-label={`Step ${step + 1} of ${STEPS.length}`}
       />
+      <p className="text-center text-xs text-muted-foreground sm:hidden">
+        Step {step + 1} of {STEPS.length} · {STEPS[step]}
+      </p>
     </div>
   );
 }
 
-function wordCount(text: string): number {
-  return text.trim() ? text.trim().split(/\s+/).length : 0;
-}
-
 function ApplyWizardSkeleton() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
-      <Skeleton className="h-8 w-56" />
-      <Skeleton className="h-4 w-full max-w-md" />
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-64 w-full rounded-xl" />
+    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+      <Skeleton className="h-8 w-36" />
+      <div className="flex items-start gap-3">
+        <Skeleton className="size-10 rounded-lg" />
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-52" />
+          <Skeleton className="h-4 w-72 max-w-full" />
+        </div>
+      </div>
+      <div className="space-y-3">
+        <div className="flex justify-between gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="size-7 rounded-full" />
+          ))}
+        </div>
+        <Skeleton className="h-2 w-full" />
+      </div>
+      <Skeleton className="h-72 w-full rounded-xl" />
     </div>
   );
 }
@@ -110,35 +178,48 @@ function ApplicationStatusCard({
 }) {
   const rejected = status === "rejected";
   return (
-    <div className="mx-auto max-w-xl px-4 py-16">
+    <ApplyPageChrome bare>
       <Card>
-        <CardHeader className="items-center text-center">
-          <span className="mb-2 flex size-14 items-center justify-center rounded-full bg-mixed/20">
-            <Clock3
-              className="size-7 text-mixed-foreground dark:text-mixed"
-              aria-hidden
-            />
+        <CardHeader className="items-center space-y-3 text-center">
+          <span
+            className={cn(
+              "flex size-14 items-center justify-center rounded-full",
+              rejected ? "bg-disagree/15" : "bg-mixed/20"
+            )}
+          >
+            {rejected ? (
+              <XCircle className="size-7 text-disagree" aria-hidden />
+            ) : (
+              <Clock3
+                className="size-7 text-mixed-foreground dark:text-mixed"
+                aria-hidden
+              />
+            )}
           </span>
-          <CardTitle>
-            Application <span className="font-mono">{code}</span>{" "}
-            {rejected ? "was not approved" : "received"}
-          </CardTitle>
-          <CardDescription className="leading-relaxed">
+          <div className="space-y-2">
+            <CardTitle>
+              {rejected ? "Application not approved" : "Application received"}
+            </CardTitle>
+            <Badge variant="secondary" className="font-mono">
+              {code}
+            </Badge>
+          </div>
+          <CardDescription className="max-w-md leading-relaxed">
             {rejected
               ? "This application is already on file, so a new submission is not available from this page."
-              : "Our editorial team reads every sample — usually within a week. Once approved, you get the writer dashboard, publishing tools, and entry access to contests."}
+              : "Our editorial team reads every sample — usually within a week. Once approved, you get the writer dashboard, publishing tools, and contest entry."}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex justify-center gap-2">
-          <Button asChild>
+        <CardContent className="flex flex-wrap justify-center gap-2">
+          <Button size="sm" asChild>
             <Link href="/profile">Go to profile</Link>
           </Button>
-          <Button asChild variant="outline">
+          <Button size="sm" variant="outline" asChild>
             <Link href="/stories">Back to stories</Link>
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </ApplyPageChrome>
   );
 }
 
@@ -178,6 +259,7 @@ export function WriterApplyWizard() {
   }, [application, router]);
 
   const words = wordCount(sample);
+  const wordProgress = Math.min(100, (words / MIN_SAMPLE_WORDS) * 100);
 
   const toggleGenre = (g: StoryGenre) =>
     setSelectedGenres((prev) =>
@@ -261,22 +343,11 @@ export function WriterApplyWizard() {
   }
 
   if (applicationCode) {
-    return (
-      <ApplicationStatusCard code={applicationCode} status="pending" />
-    );
+    return <ApplicationStatusCard code={applicationCode} status="pending" />;
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 px-4 py-8">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight">Become a Writer</h1>
-        <p className="text-sm text-muted-foreground">
-          Writers publish serialized stories, appear in genre pages and
-          contests, and build a follower base. One short application, one
-          writing sample.
-        </p>
-      </div>
-
+    <ApplyPageChrome>
       <Stepper step={step} />
 
       {step === 0 && (
@@ -377,17 +448,27 @@ export function WriterApplyWizard() {
                 placeholder="Paste or write your sample here…"
                 className="min-h-56 font-serif"
               />
-              <p
-                className={cn(
-                  "text-xs",
-                  words >= MIN_SAMPLE_WORDS
-                    ? "text-agree"
-                    : "text-muted-foreground"
-                )}
-                aria-live="polite"
-              >
-                {words} / {MIN_SAMPLE_WORDS} words minimum
-              </p>
+              <div className="space-y-1.5" aria-live="polite">
+                <div className="flex items-center justify-between text-xs">
+                  <span
+                    className={cn(
+                      words >= MIN_SAMPLE_WORDS
+                        ? "text-agree"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {words} / {MIN_SAMPLE_WORDS} words minimum
+                  </span>
+                  {words >= MIN_SAMPLE_WORDS ? (
+                    <span className="text-agree">Ready</span>
+                  ) : null}
+                </div>
+                <Progress
+                  value={wordProgress}
+                  aria-label={`${words} of ${MIN_SAMPLE_WORDS} words`}
+                  className="h-1.5"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -424,7 +505,10 @@ export function WriterApplyWizard() {
                 onCheckedChange={(v) => setPolicy(v === true)}
                 className="mt-0.5"
               />
-              <Label htmlFor="content-policy" className="cursor-pointer font-normal">
+              <Label
+                htmlFor="content-policy"
+                className="cursor-pointer font-normal"
+              >
                 <span className="block font-medium">Content policy</span>
                 <span className="text-xs text-muted-foreground">
                   I&apos;ll tag mature content honestly and follow the{" "}
@@ -475,7 +559,8 @@ export function WriterApplyWizard() {
           <CardHeader>
             <CardTitle>Review and submit</CardTitle>
             <CardDescription>
-              The editorial team reviews applications within a week.
+              Confirm your details. The editorial team reviews applications
+              within a week.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -483,6 +568,10 @@ export function WriterApplyWizard() {
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Pen name</dt>
                 <dd className="font-medium">{penName}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Language</dt>
+                <dd className="font-medium uppercase">{language}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Genres</dt>
@@ -495,17 +584,35 @@ export function WriterApplyWizard() {
                 </dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Sample</dt>
-                <dd className="font-medium">
-                  &ldquo;{sampleTitle}&rdquo; · {words} words
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Cadence</dt>
-                <dd className="font-medium capitalize">{cadence}</dd>
+                <dd className="font-medium">{cadenceLabel[cadence]}</dd>
               </div>
             </dl>
-            <Separator />
+
+            <div className="space-y-2 rounded-xl border p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">
+                    &ldquo;{sampleTitle}&rdquo;
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {words} words
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStep(1)}
+                >
+                  Continue editing
+                </Button>
+              </div>
+              <p className="whitespace-pre-wrap font-serif text-sm leading-relaxed text-foreground/90">
+                {sampleExcerpt(sample)}
+              </p>
+            </div>
+
             <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
               <ShieldCheck
                 className="mt-0.5 size-4 shrink-0 text-primary"
@@ -521,31 +628,32 @@ export function WriterApplyWizard() {
         </Card>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <Button
           variant="ghost"
+          size="sm"
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step === 0}
         >
-          <ArrowLeft className="size-4" /> Back
+          <ArrowLeft /> Back
         </Button>
         {step < STEPS.length - 1 ? (
-          <Button onClick={next}>
-            Continue <ArrowRight className="size-4" />
+          <Button size="sm" onClick={next}>
+            Continue <ArrowRight />
           </Button>
         ) : !isSignedIn ? (
           <SignInButton>
-            <Button>
-              <PenLine className="size-4" /> Sign in to submit
+            <Button size="sm">
+              <PenLine /> Sign in to submit
             </Button>
           </SignInButton>
         ) : (
-          <Button onClick={submit} disabled={submitting}>
-            <PenLine className="size-4" />
+          <Button size="sm" onClick={submit} disabled={submitting}>
+            <PenLine />
             {submitting ? "Submitting…" : "Submit application"}
           </Button>
         )}
       </div>
-    </div>
+    </ApplyPageChrome>
   );
 }

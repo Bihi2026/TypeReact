@@ -2,8 +2,11 @@
 
 import { Lock, UserX } from "lucide-react";
 import { useQuery } from "convex/react";
-import { EmptyState } from "@/components/empty-state";
 import { ProfileView } from "@/components/profile/profile-view";
+import {
+  ProfilePageSkeleton,
+  ProfileStatusShell,
+} from "@/components/profile/profile-shell";
 import { api } from "@/convex/_generated/api";
 import { toUiBark } from "@/lib/barks/query";
 import { countries } from "@/lib/data";
@@ -18,35 +21,26 @@ export function PublicProfileView({ slug }: { slug: string }) {
   );
 
   if (profile === undefined) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-16">
-        <div className="h-56 animate-pulse rounded-2xl bg-muted" />
-        <div className="mt-6 h-40 animate-pulse rounded-2xl bg-muted" />
-      </div>
-    );
+    return <ProfilePageSkeleton />;
   }
 
   if (profile.status === "missing") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16">
-        <EmptyState
-          icon={UserX}
-          title="Profile not found"
-          description="This account doesn’t exist, or the link is incomplete."
-        />
-      </div>
+      <ProfileStatusShell
+        icon={UserX}
+        title="Profile not found"
+        description="This account doesn’t exist, or the link is incomplete."
+      />
     );
   }
 
   if (profile.status === "private") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16">
-        <EmptyState
-          icon={Lock}
-          title="This profile is private"
-          description="The owner has chosen not to share their profile with other people."
-        />
-      </div>
+      <ProfileStatusShell
+        icon={Lock}
+        title="This profile is private"
+        description="The owner has chosen not to share their profile with other people."
+      />
     );
   }
 
