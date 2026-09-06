@@ -93,7 +93,7 @@ export function CiteEmbed({
             <div className="rounded-lg border bg-card p-3">
               <QRCodeSVG value={url} size={140} level="M" includeMargin={false} />
             </div>
-            <p className="text-center font-mono text-[10px] text-dark">
+            <p className="text-center font-mono text-[10px] text-[#E83F00]">
               {code}
             </p>
           </TabsContent>

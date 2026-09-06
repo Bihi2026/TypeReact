@@ -43,7 +43,7 @@ export function BarkCard({
       <div className="flex flex-col gap-3 p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <BarkTypeBadge type={bark.type} />
-          <BarkCode code={bark.code} size="sm" className="text-dark"/>
+          <BarkCode code={bark.code} size="sm" className="text-white bg-[#E83F00]" />
           {bark.status === "draft" ? (
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               Draft

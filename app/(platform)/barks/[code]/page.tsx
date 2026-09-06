@@ -191,7 +191,7 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
           <header className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <BarkTypeBadge type={bark.type} />
-              <BarkCode code={bark.code} size="md" className="text-dark" />
+              <BarkCode code={bark.code} size="md" className="text-white bg-[#E83F00]" />
               <EvidenceRating rating={bark.evidenceRating} />
             </div>
             <h1 className="min-w-0 break-words text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
