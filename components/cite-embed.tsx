@@ -36,7 +36,7 @@ export function CiteEmbed({
   path: string;
   kind?: "bark" | "case";
 }) {
-  const [origin, setOrigin] = React.useState("https://typereact.app");
+  const [origin, setOrigin] = React.useState("https://typereact.com");
   const [copied, setCopied] = React.useState<"embed" | "cite" | null>(null);
 
   React.useEffect(() => {
@@ -93,7 +93,7 @@ export function CiteEmbed({
             <div className="rounded-lg border bg-card p-3">
               <QRCodeSVG value={url} size={140} level="M" includeMargin={false} />
             </div>
-            <p className="text-center font-mono text-[10px] text-muted-foreground">
+            <p className="text-center font-mono text-[10px] text-dark">
               {code}
             </p>
           </TabsContent>
