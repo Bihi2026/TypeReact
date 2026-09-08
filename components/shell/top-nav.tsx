@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { CommandMenu } from "@/components/shell/command-menu";
 import { SidebarNav } from "@/components/shell/sidebar-nav";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
+import { PWAInstallButton } from "@/components/pwa/install-button";
 import { CreateBarkButton } from "@/components/auth/create-bark-button";
 import {
   UnreadCountBadge,
@@ -106,6 +107,9 @@ export function TopNav() {
               <UnreadCountBadge compact />
             </Link>
           </Button>
+          <div className="hidden sm:block">
+            <PWAInstallButton size="sm" variant="outline" className="hidden lg:inline-flex" />
+          </div>
           <div className="hidden sm:block">
             <ThemeToggle />
           </div>

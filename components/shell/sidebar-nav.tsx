@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { useIsAdmin } from "@/components/auth/require-admin";
 import { useMyWriterApplication } from "@/components/stories/writer-cta";
 import { UnreadCountBadge, MessagesUnreadBadge } from "@/components/notifications/unread-badge";
+import { SidebarInstallItem } from "@/components/pwa/sidebar-install-item";
 import { mainNav, personalNav, type NavItem } from "./nav-items";
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
@@ -87,6 +88,9 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           />
         </>
       )}
+      <div className="mt-auto pt-3">
+        <SidebarInstallItem />
+      </div>
     </nav>
   );
 }

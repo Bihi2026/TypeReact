@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF5A1F" />
+      <stop offset="100%" stop-color="#D03500" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-opacity="0.25" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <g filter="url(#shadow)" fill="#FFFFFF">
+    <!-- T -->
+    <path d="M110 135 H226 C230 135 233 138 233 142 V162 C233 166 230 169 226 169 H182 V360 C182 364 179 367 175 367 H153 C149 367 146 364 146 360 V169 H110 C106 169 103 166 103 162 V142 C103 138 106 135 110 135 Z" />
+    <!-- R -->
+    <path d="M260 139 C260 136 262 135 265 135 H340 C378 135 405 160 405 198 C405 232 382 254 350 259 L405 358 C407 362 405 367 400 367 H370 C366 367 363 365 360 360 L312 268 H296 V360 C296 364 293 367 289 367 H267 C263 367 260 364 260 360 V139 Z M296 169 V234 H336 C358 234 371 221 371 201 C371 181 358 169 336 169 H296 Z" />
+    <!-- Evidence Spark Dot -->
+    <circle cx="395" cy="115" r="18" fill="#FFFFFF" />
+  </g>
+</svg>
