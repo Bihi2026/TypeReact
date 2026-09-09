@@ -10,7 +10,7 @@ import { SourceThumb } from "@/components/source-thumb";
 import { VerifiedBadge } from "@/components/verified-badge";
 import { Card } from "@/components/ui/card";
 import { getCreator } from "@/lib/data";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, timeAgo } from "@/lib/format";
 import { platformMeta } from "@/lib/meta";
 import type { Source } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -129,7 +129,7 @@ export function SourceCard({
         </SourceLink>
       )}
       <div className="flex flex-col gap-2.5 p-4">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary" className="text-[11px]">
             {platformMeta[source.platform]?.label ?? source.platform}
           </Badge>
@@ -138,6 +138,16 @@ export function SourceCard({
             <Badge variant="outline" className="text-[11px]">
               {source.category}
             </Badge>
+          ) : null}
+          {source.publishedAt ? (
+            <>
+              <span className="text-[11px] text-muted-foreground" aria-hidden>
+                ·
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {timeAgo(source.publishedAt)}
+              </span>
+            </>
           ) : null}
         </div>
         {deferExternalOnMobile ? (

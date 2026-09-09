@@ -7,6 +7,13 @@ export type PublicSourceRow = FunctionReturnType<
   typeof api.barks.listPublicSources
 >[number];
 
+export function sortSourcesByPublishedAt(sources: Source[]): Source[] {
+  return [...sources].sort(
+    (a, b) =>
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+  );
+}
+
 export function toUiSource(row: PublicSourceRow): Source {
   const platform = row.sourcePlatform as SourcePlatform;
   return {

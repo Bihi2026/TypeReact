@@ -8,6 +8,21 @@ export function barksForCountry(barks: Bark[], countryCode: string): Bark[] {
   return barks.filter((b) => b.country === countryCode);
 }
 
+/** Latest reaction time for a source URL within the given bark set. */
+function latestBarkTimeBySourceUrl(barks: Bark[]): Map<string, number> {
+  const latest = new Map<string, number>();
+  for (const bark of barks) {
+    const url = bark.sourceUrl?.trim();
+    if (!url) continue;
+    const t = new Date(bark.publishedAt).getTime();
+    const prev = latest.get(url);
+    if (prev === undefined || t > prev) {
+      latest.set(url, t);
+    }
+  }
+  return latest;
+}
+
 /** Sources linked to reactions published in the given country (or all when scope is All). */
 export function sourcesUnderDiscussion(
   barks: Bark[],
@@ -15,10 +30,23 @@ export function sourcesUnderDiscussion(
   countryCode: string
 ): Source[] {
   const byCountry = barksForCountry(barks, countryCode);
-  const countrySourceUrls = new Set(
-    byCountry.map((b) => b.sourceUrl?.trim()).filter(Boolean)
-  );
-  return sources.filter((s) => countrySourceUrls.has(s.url.trim()));
+  const latestByUrl = latestBarkTimeBySourceUrl(byCountry);
+  const countrySourceUrls = new Set(latestByUrl.keys());
+
+  return sources
+    .filter((s) => countrySourceUrls.has(s.url.trim()))
+    .map((s) => {
+      const latest = latestByUrl.get(s.url.trim());
+      if (latest === undefined) return s;
+      return {
+        ...s,
+        publishedAt: new Date(latest).toISOString(),
+      };
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    );
 }
 
 export function underDiscussionContext(barks: Bark[], countryCode: string) {

@@ -27,7 +27,7 @@ import {
   sourcesUnderDiscussion,
   underDiscussionContext,
 } from "@/lib/sources/under-discussion";
-import { toUiSource } from "@/lib/sources/query";
+import { sortSourcesByPublishedAt, toUiSource } from "@/lib/sources/query";
 import { formatNumber } from "@/lib/format";
 import type { Bark, Source } from "@/lib/types";
 
@@ -98,16 +98,20 @@ export function HomePageContent({
 
   const { byCountry, featuredCodeByUrl, statsForSource } =
     underDiscussionContext(published, selectedCountry);
+  const byCountryNewest = sortBarksByPublishedAt(byCountry);
   const worldwide = sortBarksByPublishedAt(published);
-  const underDiscussionSources = sourcesUnderDiscussion(
-    published,
-    publicSources,
-    selectedCountry
+  const underDiscussionSources = sortSourcesByPublishedAt(
+    sourcesUnderDiscussion(published, publicSources, selectedCountry)
   ).slice(0, 6);
-  const trendingBarks = [...byCountry]
-    .sort((a, b) => b.upvotes - a.upvotes)
+  const trendingBarks = [...byCountryNewest]
+    .sort((a, b) => {
+      const t =
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+      if (t !== 0) return t;
+      return b.upvotes - a.upvotes;
+    })
     .slice(0, 5);
-  const localFeed = byCountry.slice(0, 4);
+  const localFeed = byCountryNewest.slice(0, 4);
   const globalFeed = worldwide.slice(0, 4);
   const scopeIsAll = isCountryScopeAll(selectedCountry);
   const scopePlace = scopeIsAll
@@ -164,7 +168,7 @@ export function HomePageContent({
           <section aria-labelledby="trending-barks">
             <SectionHeader
               title="Trending Reactions"
-              description={`The most upvoted evidence-based responses in ${countryLabel}`}
+              description={`Newest evidence-based responses in ${countryLabel}`}
               href="/barks"
             />
             <div className="mt-4 space-y-3">
