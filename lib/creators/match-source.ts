@@ -192,6 +192,7 @@ export type MatchSourceInput = {
   url: string;
   platform: SourcePlatform;
   authorName?: string;
+  authorHandle?: string;
 };
 
 export function matchApprovedCreator(
@@ -200,6 +201,17 @@ export function matchApprovedCreator(
 ): Creator | null {
   const pastedUrl = parsePublicUrl(input.url);
   if (!pastedUrl) return null;
+
+  const handleKey = input.authorHandle
+    ? normalizeCreatorKey(input.authorHandle)
+    : "";
+  if (handleKey) {
+    for (const creator of creators) {
+      if (!creator.hasTeaBarksProfile) continue;
+      if (normalizeCreatorKey(creator.handle) === handleKey) return creator;
+      if (authorMatchesCreator(input.authorHandle!, creator)) return creator;
+    }
+  }
 
   return (
     findByOfficialLink(pastedUrl, creators) ??

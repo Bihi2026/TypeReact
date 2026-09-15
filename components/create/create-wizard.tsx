@@ -854,7 +854,9 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
                       {platformMeta[source.platform].label}
                     </Badge>
                     <Badge variant="outline">{source.category}</Badge>
-                    <Badge variant="outline">{source.language}</Badge>
+                    {source.language ? (
+                      <Badge variant="outline">{source.language}</Badge>
+                    ) : null}
                   </div>
                   <h3 className="font-semibold leading-snug">{source.title}</h3>
                   <p className="text-sm text-muted-foreground">

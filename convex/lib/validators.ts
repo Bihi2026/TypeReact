@@ -792,6 +792,32 @@ export const storyChapterDocFields = {
   updatedAt: v.number(),
 };
 
+export const storyIdeaStatus = v.union(
+  v.literal("pending"),
+  v.literal("accepted"),
+  v.literal("rejected")
+);
+
+export const storyIdeaDocFields = {
+  ideaCode: v.string(),
+  title: v.string(),
+  pitch: v.string(),
+  genre: v.optional(storyGenre),
+  notes: v.optional(v.string()),
+  submitterClerkId: v.string(),
+  submitterName: v.string(),
+  status: storyIdeaStatus,
+  reviewerClerkId: v.optional(v.string()),
+  reviewNote: v.optional(v.string()),
+  reviewedAt: v.optional(v.number()),
+  assignedWriterId: v.optional(v.id("writers")),
+  assignedClerkId: v.optional(v.string()),
+  assignedAt: v.optional(v.number()),
+  storyId: v.optional(v.id("stories")),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+};
+
 export const storyLikeFields = {
   storyId: v.id("stories"),
   clerkUserId: v.string(),
@@ -914,6 +940,10 @@ export const moderationEventKind = v.union(
   v.literal("creator_reject"),
   v.literal("writer_approve"),
   v.literal("writer_reject"),
+  v.literal("story_idea_accept"),
+  v.literal("story_idea_reject"),
+  v.literal("story_idea_assign"),
+  v.literal("story_idea_reassign"),
   v.literal("case_publish"),
   v.literal("case_resolve")
 );

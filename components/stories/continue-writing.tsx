@@ -14,6 +14,7 @@ import {
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { CoverPicker } from "@/components/stories/cover-picker";
+import { StoryIdeaContext } from "@/components/stories/story-idea-context";
 import { StorySettingsDialog } from "@/components/stories/story-settings-dialog";
 import { ReadingProse } from "@/components/reading-prose";
 import { Badge } from "@/components/ui/badge";
@@ -171,6 +172,8 @@ export function ContinueWriting({
           {partNumber ? ` · Part ${partNumber}` : ""}
         </p>
       </div>
+
+      {story ? <StoryIdeaContext storyId={story._id} /> : null}
 
       <div className="space-y-2">
         <Label htmlFor="part-picker">Part</Label>

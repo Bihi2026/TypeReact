@@ -192,6 +192,12 @@ function titleFromUrl(url: URL): string {
   if (tiktok) return `TikTok video ${tiktok}`;
   if (facebookPhotoId(url)) return "Facebook photo";
   if (facebookReelId(url)) return "Facebook reel";
+  const ig = instagramMediaId(url);
+  if (ig) {
+    if (ig.kind === "reel") return "Instagram reel";
+    if (ig.kind === "tv") return "Instagram video";
+    return "Instagram post";
+  }
   const status = xStatusId(url);
   if (status) return `Post by ${xHandle(url) ?? "X"}`;
   const parts = url.pathname.split("/").filter(Boolean);
@@ -240,6 +246,12 @@ export function canonicalUrl(url: URL): URL {
     return new URL(`https://www.tiktok.com${path}`);
   }
 
+  const ig = instagramMediaId(url);
+  if (ig) {
+    const segment = ig.kind === "reel" ? "reel" : ig.kind === "tv" ? "tv" : "p";
+    return new URL(`https://www.instagram.com/${segment}/${ig.id}/`);
+  }
+
   return url;
 }
 
@@ -253,7 +265,7 @@ function syntheticSource(url: URL): Source {
     creatorId: "",
     publishedAt: new Date().toISOString().slice(0, 10),
     category: "Uncategorized",
-    language: "Unknown",
+    language: "",
     barkCount: 0,
     replyChainCount: 0,
     caseCount: 0,
@@ -262,12 +274,35 @@ function syntheticSource(url: URL): Source {
   };
 }
 
-export function remoteCreator(name: string, platform: SourcePlatform): Creator {
-  const handle = name.toLowerCase().replace(/[^a-z0-9]+/g, "") || "creator";
+const BAD_REMOTE_HANDLES = new Set(["", "instagram", "unknown", "creator"]);
+
+function usableRemoteHandle(raw?: string): string | undefined {
+  const handle = raw?.toLowerCase().replace(/[^a-z0-9._]+/g, "").trim();
+  if (!handle || BAD_REMOTE_HANDLES.has(handle)) return undefined;
+  return handle;
+}
+
+export function remoteCreator(
+  name: string,
+  platform: SourcePlatform,
+  handleOverride?: string
+): Creator | null {
+  const trimmedName = name.trim();
+  const handle =
+    usableRemoteHandle(handleOverride) ||
+    usableRemoteHandle(trimmedName);
+  if (!handle && !trimmedName) return null;
+  if (!handle) return null;
+
+  const displayName =
+    trimmedName && !BAD_REMOTE_HANDLES.has(trimmedName.toLowerCase())
+      ? trimmedName
+      : handle;
+
   return {
     id: `remote:${platform}:${handle}`,
     handle,
-    name,
+    name: displayName,
     bio: "",
     verified: false,
     hasTeaBarksProfile: false,
@@ -288,21 +323,27 @@ export function applyRemoteMeta(
   meta: {
     title?: string;
     authorName?: string;
+    authorHandle?: string;
     thumbnailUrl?: string;
     category?: string;
   }
 ): DetectedSource {
   const title = meta.title?.trim();
   const authorName = meta.authorName?.trim();
-  const creator =
-    detected.creator ??
-    (authorName ? remoteCreator(authorName, detected.source.platform) : null);
+  const authorHandle = usableRemoteHandle(meta.authorHandle);
+  const displayName = authorName || authorHandle;
+  const created =
+    !detected.creator && displayName
+      ? remoteCreator(displayName, detected.source.platform, authorHandle)
+      : null;
+  const creator = detected.creator ?? created;
   return {
     source: {
       ...detected.source,
       title: title || detected.source.title,
       thumbnailUrl: meta.thumbnailUrl || detected.source.thumbnailUrl,
       creatorId: creator?.id ?? detected.source.creatorId,
+      creatorName: creator?.name ?? detected.source.creatorName,
       category: meta.category || detected.source.category,
     },
     creator,

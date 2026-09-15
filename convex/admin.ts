@@ -480,6 +480,7 @@ export const queueCounts = query({
       reports: v.number(),
       verification: v.number(),
       writerApps: v.number(),
+      storyIdeas: v.number(),
       casesUnderReview: v.number(),
     }),
     v.null()
@@ -492,6 +493,7 @@ export const queueCounts = query({
       storyReports,
       pendingCreators,
       pendingWriters,
+      pendingStoryIdeas,
       casesUnderReview,
     ] = await Promise.all([
       ctx.db.query("barkReports").order("desc").take(REPORT_SOURCE_CAP),
@@ -503,6 +505,10 @@ export const queueCounts = query({
         .take(LIST_CAP),
       ctx.db
         .query("writers")
+        .withIndex("by_status_createdAt", (q) => q.eq("status", "pending"))
+        .take(LIST_CAP),
+      ctx.db
+        .query("storyIdeas")
         .withIndex("by_status_createdAt", (q) => q.eq("status", "pending"))
         .take(LIST_CAP),
       ctx.db
@@ -518,6 +524,7 @@ export const queueCounts = query({
       reports,
       verification: pendingCreators.length,
       writerApps: pendingWriters.length,
+      storyIdeas: pendingStoryIdeas.length,
       casesUnderReview: casesUnderReview.length,
     };
   },

@@ -2,6 +2,7 @@ import {
   canonicalUrl,
   facebookPhotoId,
   facebookReelId,
+  instagramMediaId,
   isTikTokShortHost,
   parsePublicUrl,
   xStatusId,
@@ -12,6 +13,8 @@ import type { SourcePlatform } from "@/lib/types";
 export type RemoteMeta = {
   title?: string;
   authorName?: string;
+  /** Platform handle when known (e.g. Instagram username from author_url). */
+  authorHandle?: string;
   thumbnailUrl?: string;
   category?: string;
 };
@@ -19,6 +22,7 @@ export type RemoteMeta = {
 type OEmbed = {
   title?: string;
   author_name?: string;
+  author_url?: string;
   thumbnail_url?: string;
   html?: string;
 };
@@ -46,6 +50,7 @@ const GENERIC_TITLES = new Set([
   "facebook",
   "facebook - log in or sign up",
   "log into facebook",
+  "instagram",
   "tiktok",
   "x",
   "twitter",
@@ -86,6 +91,23 @@ function metaContent(html: string, keys: string[]): string | undefined {
   return undefined;
 }
 
+const IG_RESERVED_PATHS = new Set([
+  "p",
+  "reel",
+  "reels",
+  "tv",
+  "stories",
+  "explore",
+  "accounts",
+  "about",
+  "developer",
+  "legal",
+  "web",
+  "directory",
+]);
+
+const BAD_HANDLES = new Set(["", "instagram", "unknown", "creator"]);
+
 function cleanTitle(title?: string): string | undefined {
   const value = title?.trim();
   if (!value) return undefined;
@@ -98,7 +120,83 @@ function cleanAuthor(name?: string): string | undefined {
   if (!value) return undefined;
   if (/^https?:\/\//i.test(value)) return undefined;
   if (GENERIC_TITLES.has(value.toLowerCase())) return undefined;
+  if (BAD_HANDLES.has(value.toLowerCase())) return undefined;
   return value;
+}
+
+function normalizeHandle(raw?: string): string | undefined {
+  const handle = raw?.replace(/^@/, "").trim().toLowerCase();
+  if (!handle) return undefined;
+  if (IG_RESERVED_PATHS.has(handle) || BAD_HANDLES.has(handle)) return undefined;
+  if (!/^[a-z0-9._]{1,30}$/i.test(handle)) return undefined;
+  return handle;
+}
+
+function handleFromAuthorUrl(authorUrl?: string): string | undefined {
+  if (!authorUrl) return undefined;
+  try {
+    const parsed = new URL(authorUrl);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    return normalizeHandle(parts[0]);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Meta removed author_* / thumbnail_* from oEmbed; recover them from embed HTML. */
+function parseInstagramEmbedHtml(html?: string): {
+  authorHandle?: string;
+  authorName?: string;
+  caption?: string;
+} {
+  if (!html) return {};
+
+  const decoded = decodeEntities(html);
+  const sharedBy = decoded.match(
+    /(?:A\s+(?:post|video|reel)\s+shared\s+by|Shared\s+by)\s+([^<(@]+?)\s*\(@([a-z0-9._]+)\)/i
+  );
+  let authorName = cleanAuthor(sharedBy?.[1]);
+  let authorHandle = normalizeHandle(sharedBy?.[2]);
+
+  if (!authorHandle) {
+    const atOnly = decoded.match(/@([a-z0-9._]{1,30})\b/i);
+    authorHandle = normalizeHandle(atOnly?.[1]);
+  }
+
+  if (!authorHandle) {
+    const profileLinks = [
+      ...decoded.matchAll(
+        /https?:\/\/(?:www\.)?instagram\.com\/([a-z0-9._]+)\/?/gi
+      ),
+    ];
+    for (const match of profileLinks) {
+      const candidate = normalizeHandle(match[1]);
+      if (candidate) {
+        authorHandle = candidate;
+        break;
+      }
+    }
+  }
+
+  if (!authorName && authorHandle) {
+    authorName = authorHandle;
+  }
+
+  const plain = stripHtml(decoded);
+  let caption: string | undefined;
+  if (plain) {
+    const withoutShared = plain
+      .replace(
+        /(?:A\s+(?:post|video|reel)\s+shared\s+by|Shared\s+by)\s+[^(]+?\(@[a-z0-9._]+\)\.?/i,
+        ""
+      )
+      .replace(/View\s+this\s+post\s+on\s+Instagram/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    caption = cleanTitle(withoutShared);
+  }
+
+  return { authorHandle, authorName, caption };
 }
 
 export function parseOpenGraph(html: string): RemoteMeta {
@@ -126,7 +224,9 @@ export function parseOpenGraph(html: string): RemoteMeta {
 }
 
 function hasCard(meta: RemoteMeta | null | undefined): boolean {
-  return Boolean(meta?.title || meta?.authorName || meta?.thumbnailUrl);
+  return Boolean(
+    meta?.title || meta?.authorName || meta?.authorHandle || meta?.thumbnailUrl
+  );
 }
 
 async function fetchJson<T>(url: string): Promise<T | null> {
@@ -179,6 +279,14 @@ function authorFromPipeTitle(title?: string): string | undefined {
   if (!title || !title.includes("|")) return undefined;
   const last = title.split("|").map((part) => part.trim()).at(-1);
   return cleanAuthor(last);
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export async function resolveTikTokUrl(raw: string): Promise<string> {
@@ -250,12 +358,47 @@ async function unfurlFacebook(canonicalHref: string): Promise<RemoteMeta | null>
   };
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+async function unfurlInstagram(canonicalHref: string): Promise<RemoteMeta | null> {
+  const parsed = parsePublicUrl(canonicalHref);
+  if (!parsed) return null;
+  const media = instagramMediaId(parsed);
+  const category =
+    media?.kind === "reel" ? "Reel" : media?.kind === "tv" ? "Video" : "Post";
+
+  const data = await fetchJson<OEmbed>(
+    `https://graph.facebook.com/v26.0/instagram_oembed?url=${encodeURIComponent(
+      canonicalHref
+    )}&omitscript=true`
+  );
+
+  const fromHtml = parseInstagramEmbedHtml(data?.html);
+  const authorHandle =
+    normalizeHandle(handleFromAuthorUrl(data?.author_url)) ||
+    fromHtml.authorHandle;
+  const authorName =
+    cleanAuthor(data?.author_name) || fromHtml.authorName || authorHandle;
+
+  // Meta no longer returns thumbnail/author via oEmbed fields — scrape OG too.
+  const og = await scrapeOpenGraph(canonicalHref);
+
+  const title =
+    cleanTitle(data?.title) ||
+    og.title ||
+    fromHtml.caption ||
+    authorFromPipeTitle(og.title);
+
+  const thumbnailUrl = data?.thumbnail_url || og.thumbnailUrl;
+
+  const merged: RemoteMeta = {
+    title,
+    authorName: authorName || cleanAuthor(og.authorName),
+    authorHandle: authorHandle || normalizeHandle(og.authorHandle),
+    thumbnailUrl,
+    category,
+  };
+
+  if (hasCard(merged)) return merged;
+  return media ? { category } : null;
 }
 
 async function unfurlX(statusId: string): Promise<RemoteMeta | null> {
@@ -318,6 +461,8 @@ export async function unfurlSource(
       return unfurlTikTok(raw);
     case "facebook":
       return unfurlFacebook(canonical);
+    case "instagram":
+      return unfurlInstagram(canonical);
     case "x": {
       const id = xStatusId(parsed);
       return id ? unfurlX(id) : unfurlArticle(canonical);

@@ -27,6 +27,7 @@ import {
   storyChapterDocFields,
   storyCommentFields,
   storyDocFields,
+  storyIdeaDocFields,
   storyLikeFields,
   storyReadFields,
   storyReportFields,
@@ -220,6 +221,12 @@ export default defineSchema({
       "genre",
       "updatedAt",
     ]),
+  storyIdeas: defineTable(storyIdeaDocFields)
+    .index("by_status_createdAt", ["status", "createdAt"])
+    .index("by_submitter_createdAt", ["submitterClerkId", "createdAt"])
+    .index("by_ideaCode", ["ideaCode"])
+    .index("by_assignedWriter", ["assignedWriterId"])
+    .index("by_storyId", ["storyId"]),
   storyChapters: defineTable(storyChapterDocFields)
     .index("by_story_number", ["storyId", "number"])
     .index("by_story_status", ["storyId", "status"]),

@@ -19,23 +19,32 @@ function titleCaseHandle(handle: string) {
     .join(" ");
 }
 
+const BAD_EXTERNAL_HANDLES = new Set(["", "instagram", "unknown", "creator"]);
+
 export function resolveExternalIdentity(input: {
   url: string;
   platform: SourcePlatform;
   authorName?: string;
+  authorHandle?: string;
 }): ExternalIdentity | null {
   const parsed = parsePublicUrl(input.url);
   const authorName = input.authorName?.trim();
+  const authorHandle = input.authorHandle?.trim();
 
   let externalHandle = "";
-  if (parsed) {
+  if (authorHandle) {
+    externalHandle = normalizeCreatorKey(authorHandle);
+  }
+  if (!externalHandle && parsed) {
     const fromUrl = platformHandleFromUrl(parsed, input.platform);
     if (fromUrl) externalHandle = normalizeCreatorKey(fromUrl);
   }
   if (!externalHandle && authorName) {
     externalHandle = normalizeCreatorKey(authorName);
   }
-  if (!externalHandle) return null;
+  if (!externalHandle || BAD_EXTERNAL_HANDLES.has(externalHandle)) {
+    return null;
+  }
 
   const displayName =
     authorName || titleCaseHandle(externalHandle) || externalHandle;

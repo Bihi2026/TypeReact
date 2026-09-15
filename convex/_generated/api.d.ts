@@ -41,6 +41,7 @@ import type * as profiles from "../profiles.js";
 import type * as researchCircles from "../researchCircles.js";
 import type * as saves from "../saves.js";
 import type * as stories from "../stories.js";
+import type * as storyIdeas from "../storyIdeas.js";
 import type * as storySocial from "../storySocial.js";
 import type * as userSettings from "../userSettings.js";
 import type * as writers from "../writers.js";
@@ -85,6 +86,7 @@ declare const fullApi: ApiFromModules<{
   researchCircles: typeof researchCircles;
   saves: typeof saves;
   stories: typeof stories;
+  storyIdeas: typeof storyIdeas;
   storySocial: typeof storySocial;
   userSettings: typeof userSettings;
   writers: typeof writers;

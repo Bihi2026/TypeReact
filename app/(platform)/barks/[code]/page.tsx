@@ -20,6 +20,7 @@ import {
 } from "@/components/bark/evidence-requests";
 import { CommunityNotesSection } from "@/components/bark/community-notes";
 import { ClaimMapSection } from "@/components/bark/claim-map";
+import { AuthorDisclaimerBanner } from "@/components/bark/author-disclaimer-banner";
 import { VisitDigestBanner } from "@/components/bark/visit-digest-banner";
 import { BarkReadingToolbar } from "@/components/bark/bark-reading-toolbar";
 import { LikeButton } from "@/components/bark/like-button";
@@ -321,6 +322,7 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
             {bark.live ? <AmendReactionForm bark={bark} /> : null}
             {bark.live ? <ClaimMapSection bark={bark} /> : null}
             <BarkReadingToolbar />
+            <AuthorDisclaimerBanner />
             <BarkContent
               content={bark.content}
               evidence={bark.evidence}
