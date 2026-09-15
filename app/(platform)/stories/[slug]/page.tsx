@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   BookOpen,
-  Clapperboard,
   Clock,
   Eye,
   Heart,
@@ -113,11 +112,6 @@ export default async function StoryPage(props: PageProps<"/stories/[slug]">) {
             <Button asChild>
               <Link href={`/stories/${story.slug}/chapters/${firstChapter}`}>
                 <Play className="size-4" /> Start reading
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href={`/stories/${story.slug}/watch`}>
-                <Clapperboard className="size-4" /> Watch
               </Link>
             </Button>
             <VoteButton

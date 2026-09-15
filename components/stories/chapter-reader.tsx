@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
-  Clapperboard,
   Clock,
   List,
 } from "lucide-react";
@@ -123,12 +122,6 @@ export function ChapterReader({
               wordCount={chapter.wordCount}
               chapterKey={`${storySlug}:${chapter.number}`}
             />
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/stories/${storySlug}/watch?part=${chapter.number}`}>
-                <Clapperboard className="size-4" />
-                Watch instead
-              </Link>
-            </Button>
             <ReadingTextSizeControl />
             <Button asChild variant="outline" size="sm" aria-label="Table of contents">
               <Link href={`/stories/${storySlug}`}>

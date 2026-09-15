@@ -16,7 +16,6 @@ import { EmptyState } from "@/components/empty-state";
 import { AssignedIdeasInbox } from "@/components/stories/assigned-ideas-inbox";
 import { NewStoryDialog } from "@/components/stories/new-story-dialog";
 import { StorySettingsDialog } from "@/components/stories/story-settings-dialog";
-import { StoryVideosForSlug } from "@/components/stories/story-videos-for-slug";
 import { WriterNotifications } from "@/components/stories/writer-notifications";
 import { WriterReadsChart } from "@/components/stories/writer-chart";
 import { Badge } from "@/components/ui/badge";
@@ -151,20 +150,6 @@ export function ApprovedWriterDashboard({
       </div>
 
       <AssignedIdeasInbox />
-
-      {published.length > 0 ? (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Watch films</h2>
-          {published.map((s) => (
-            <div key={s.id} className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">
-                {s.title}
-              </p>
-              <StoryVideosForSlug slug={s.slug} />
-            </div>
-          ))}
-        </div>
-      ) : null}
 
       <Card>
         <CardHeader>

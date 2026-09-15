@@ -1,5 +1,4 @@
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
@@ -507,11 +506,6 @@ export const publishChapter = mutation({
     await ctx.db.patch(story._id, {
       visibility: "public",
       updatedAt: now,
-    });
-
-    await ctx.scheduler.runAfter(0, internal.storyVideos.enqueueOnPublish, {
-      storyId: story._id,
-      chapterId: draft._id,
     });
 
     return { number: draft.number, nextNumber: draft.number + 1 };
