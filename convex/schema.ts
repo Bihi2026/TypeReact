@@ -27,9 +27,16 @@ import {
   storyChapterDocFields,
   storyCommentFields,
   storyDocFields,
+  storyIdeaDocFields,
   storyLikeFields,
   storyReadFields,
   storyReportFields,
+  storyVideoDocFields,
+  storyVideoSegmentDocFields,
+  storyCharacterCastDocFields,
+  storyCharacterLoraDocFields,
+  writerSocialAccountDocFields,
+  storySocialPostDocFields,
   storyWriterFollowFields,
   sourceSaveFields,
   saveCollectionFields,
@@ -220,6 +227,12 @@ export default defineSchema({
       "genre",
       "updatedAt",
     ]),
+  storyIdeas: defineTable(storyIdeaDocFields)
+    .index("by_status_createdAt", ["status", "createdAt"])
+    .index("by_submitter_createdAt", ["submitterClerkId", "createdAt"])
+    .index("by_ideaCode", ["ideaCode"])
+    .index("by_assignedWriter", ["assignedWriterId"])
+    .index("by_storyId", ["storyId"]),
   storyChapters: defineTable(storyChapterDocFields)
     .index("by_story_number", ["storyId", "number"])
     .index("by_story_status", ["storyId", "status"]),
@@ -240,6 +253,37 @@ export default defineSchema({
     "storyId",
     "clerkUserId",
   ]),
+  storyVideos: defineTable(storyVideoDocFields)
+    .index("by_story_chapter_kind", ["storyId", "chapterNumber", "kind"])
+    .index("by_chapter_kind", ["chapterId", "kind"])
+    .index("by_writer_createdAt", ["writerId", "createdAt"])
+    .index("by_status_updatedAt", ["status", "updatedAt"])
+    .index("by_story_visibility_chapterNumber", [
+      "storyId",
+      "visibility",
+      "chapterNumber",
+    ]),
+  storyVideoSegments: defineTable(storyVideoSegmentDocFields)
+    .index("by_video_order", ["videoId", "paragraphIndex", "beatIndex"])
+    .index("by_video_kind", ["videoId", "kind"]),
+  storyCharacterCast: defineTable(storyCharacterCastDocFields).index(
+    "by_story",
+    ["storyId"]
+  ),
+  storyCharacterLoras: defineTable(storyCharacterLoraDocFields)
+    .index("by_story", ["storyId"])
+    .index("by_story_character", ["storyId", "characterKey"]),
+  writerSocialAccounts: defineTable(writerSocialAccountDocFields)
+    .index("by_writer_platform", ["writerId", "platform"])
+    .index("by_author", ["authorClerkId"]),
+  storySocialPosts: defineTable(storySocialPostDocFields)
+    .index("by_story_chapter_platform", [
+      "storyId",
+      "chapterNumber",
+      "platform",
+    ])
+    .index("by_writer_createdAt", ["writerId", "createdAt"])
+    .index("by_status_updatedAt", ["status", "updatedAt"]),
   contests: defineTable(contestDocFields)
     .index("by_slug", ["slug"])
     .index("by_status_deadline", ["status", "deadlineAt"]),

@@ -14,6 +14,10 @@ const actionLabel = {
   creator_reject: "Creator rejected",
   writer_approve: "Writer approved",
   writer_reject: "Writer rejected",
+  story_idea_accept: "Story idea accepted",
+  story_idea_reject: "Story idea rejected",
+  story_idea_assign: "Story idea assigned",
+  story_idea_reassign: "Story idea reassigned",
   case_publish: "Case published",
   case_resolve: "Case resolved",
 } as const;

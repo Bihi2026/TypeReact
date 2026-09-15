@@ -23,7 +23,8 @@ import {
 async function withApprovedCreator(
   detected: DetectedSource,
   url: string,
-  authorName?: string
+  authorName?: string,
+  authorHandle?: string
 ): Promise<DetectedSource> {
   try {
     const approved = await listApprovedCreators();
@@ -32,6 +33,7 @@ async function withApprovedCreator(
         url,
         platform: detected.source.platform,
         authorName,
+        authorHandle,
       },
       approved
     );
@@ -55,7 +57,8 @@ async function withApprovedCreator(
 async function withUnclaimedCreator(
   detected: DetectedSource,
   url: string,
-  authorName?: string
+  authorName?: string,
+  authorHandle?: string
 ): Promise<DetectedSource> {
   if (detected.creator?.hasTeaBarksProfile) return detected;
 
@@ -63,6 +66,7 @@ async function withUnclaimedCreator(
     url,
     platform: detected.source.platform,
     authorName,
+    authorHandle,
   });
   if (!identity) return detected;
 
@@ -117,11 +121,13 @@ export async function analyzeSourceUrl(
   const withApproved = await withApprovedCreator(
     enriched,
     sourceUrl,
-    meta.authorName
+    meta.authorName,
+    meta.authorHandle
   );
   return await withUnclaimedCreator(
     withApproved,
     sourceUrl,
-    meta.authorName
+    meta.authorName,
+    meta.authorHandle
   );
 }

@@ -16,6 +16,7 @@ import { ClerkSyncPanel } from "@/components/admin/clerk-sync-panel";
 import { ContestAdminPanel } from "@/components/admin/contest-admin";
 import { VerificationQueue } from "@/components/admin/verification-queue";
 import { WriterApplicationsQueue } from "@/components/admin/writer-applications-queue";
+import { StoryIdeasQueue } from "@/components/admin/story-ideas-queue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +34,7 @@ const panelsByTab: Record<AdminTab, readonly string[]> = {
   overview: ["analytics"],
   inbox: ["reports", "activity"],
   people: ["users", "creators", "verification"],
-  content: ["evidence", "stories", "contests", "learning"],
+  content: ["evidence", "stories", "storyIdeas", "contests", "learning"],
   system: ["sync"],
 };
 
@@ -46,6 +47,7 @@ const panelLabels: Record<string, string> = {
   verification: "Verification",
   evidence: "Evidence",
   stories: "Stories",
+  storyIdeas: "Story ideas",
   contests: "Contests",
   learning: "Learning",
   sync: "Sync",
@@ -128,8 +130,9 @@ export function AdminDashboard() {
             Content
             <CountBadge
               count={
-                (counts?.casesUnderReview ?? 0) + (counts?.writerApps ?? 0) ||
-                undefined
+                (counts?.casesUnderReview ?? 0) +
+                  (counts?.writerApps ?? 0) +
+                  (counts?.storyIdeas ?? 0) || undefined
               }
             />
           </TabsTrigger>
@@ -158,6 +161,9 @@ export function AdminDashboard() {
                 {id === "stories" ? (
                   <CountBadge count={counts?.writerApps} />
                 ) : null}
+                {id === "storyIdeas" ? (
+                  <CountBadge count={counts?.storyIdeas} />
+                ) : null}
               </Button>
             ))}
           </div>
@@ -184,6 +190,8 @@ export function AdminDashboard() {
         <TabsContent value="content" className="mt-4 min-w-0">
           {panel === "stories" ? (
             <WriterApplicationsQueue />
+          ) : panel === "storyIdeas" ? (
+            <StoryIdeasQueue />
           ) : panel === "contests" ? (
             <ContestAdminPanel />
           ) : panel === "learning" ? (

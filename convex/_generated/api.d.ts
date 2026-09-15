@@ -31,6 +31,7 @@ import type * as lib_creator_identity from "../lib/creator_identity.js";
 import type * as lib_moderation from "../lib/moderation.js";
 import type * as lib_mutes from "../lib/mutes.js";
 import type * as lib_notify from "../lib/notify.js";
+import type * as lib_storyVideoScript from "../lib/storyVideoScript.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as mentions from "../mentions.js";
 import type * as messages from "../messages.js";
@@ -41,7 +42,10 @@ import type * as profiles from "../profiles.js";
 import type * as researchCircles from "../researchCircles.js";
 import type * as saves from "../saves.js";
 import type * as stories from "../stories.js";
+import type * as storyIdeas from "../storyIdeas.js";
 import type * as storySocial from "../storySocial.js";
+import type * as storyVideoActions from "../storyVideoActions.js";
+import type * as storyVideos from "../storyVideos.js";
 import type * as userSettings from "../userSettings.js";
 import type * as writers from "../writers.js";
 
@@ -75,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   "lib/moderation": typeof lib_moderation;
   "lib/mutes": typeof lib_mutes;
   "lib/notify": typeof lib_notify;
+  "lib/storyVideoScript": typeof lib_storyVideoScript;
   "lib/validators": typeof lib_validators;
   mentions: typeof mentions;
   messages: typeof messages;
@@ -85,7 +90,10 @@ declare const fullApi: ApiFromModules<{
   researchCircles: typeof researchCircles;
   saves: typeof saves;
   stories: typeof stories;
+  storyIdeas: typeof storyIdeas;
   storySocial: typeof storySocial;
+  storyVideoActions: typeof storyVideoActions;
+  storyVideos: typeof storyVideos;
   userSettings: typeof userSettings;
   writers: typeof writers;
 }>;

@@ -76,6 +76,26 @@ export function StoriesHome({
 
             <WriterHomeBanner />
 
+            <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="font-semibold">Have a story idea?</p>
+                <p className="text-sm text-muted-foreground">
+                  Pitch a concept for editorial review. Accepted ideas appear in
+                  the public browse, and writers may be assigned a draft.
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button asChild variant="outline">
+                  <Link href="/stories/ideas">Browse accepted ideas</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/stories/submit-idea">
+                    Submit a story idea <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              </div>
+            </Card>
+
             {featured ? (
               <section aria-labelledby="featured-heading" className="space-y-4">
                 <h2

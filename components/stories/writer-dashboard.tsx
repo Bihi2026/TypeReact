@@ -13,10 +13,13 @@ import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { CoverPicker } from "@/components/stories/cover-picker";
 import { EmptyState } from "@/components/empty-state";
+import { AssignedIdeasInbox } from "@/components/stories/assigned-ideas-inbox";
 import { NewStoryDialog } from "@/components/stories/new-story-dialog";
 import { StorySettingsDialog } from "@/components/stories/story-settings-dialog";
+import { StoryVideosForSlug } from "@/components/stories/story-videos-for-slug";
 import { WriterNotifications } from "@/components/stories/writer-notifications";
 import { WriterReadsChart } from "@/components/stories/writer-chart";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -65,7 +68,14 @@ export function ApprovedWriterDashboard({
     isAuthenticated ? {} : "skip"
   );
   const setStatus = useMutation(api.stories.setStatus);
+  const assignedIdeas = useQuery(
+    api.storyIdeas.listAssignedToMe,
+    isAuthenticated ? {} : "skip"
+  );
   const stories = docs ? docs.map(toMineStory) : initialStories;
+  const ideaStoryIds = new Set(
+    (assignedIdeas ?? []).map((row) => row.storyId as string)
+  );
   const published = stories.filter((s) => s.publishedChapterCount > 0);
   const drafts = stories.filter((s) => s.publishedChapterCount === 0);
   const publishedParts = stories.reduce(
@@ -139,6 +149,22 @@ export function ApprovedWriterDashboard({
         </Card>
         <WriterNotifications />
       </div>
+
+      <AssignedIdeasInbox />
+
+      {published.length > 0 ? (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Watch films</h2>
+          {published.map((s) => (
+            <div key={s.id} className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">
+                {s.title}
+              </p>
+              <StoryVideosForSlug slug={s.slug} />
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -287,7 +313,17 @@ export function ApprovedWriterDashboard({
                     />
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{d.title}</p>
+                    <p className="truncate text-sm font-medium">
+                      {d.title}
+                      {ideaStoryIds.has(d.id) ? (
+                        <Badge
+                          variant="secondary"
+                          className="ml-2 align-middle text-[10px]"
+                        >
+                          From idea
+                        </Badge>
+                      ) : null}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {getGenreMeta(d.genre).label} · edited {timeAgo(d.updatedAt)}
                     </p>
