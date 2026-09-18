@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { getConvexClerkToken } from "@/lib/convex-clerk";
 import {
+  channelUrlFromHandle,
   channelUrlFromSource,
   resolveExternalIdentity,
 } from "@/lib/creators/external-identity";
@@ -136,6 +137,7 @@ export async function ensureUnclaimedCreatorAction(input: {
   url: string;
   platform: SourcePlatform;
   authorName?: string;
+  authorHandle?: string;
   profileImageUrl?: string;
 }): Promise<Creator | null> {
   const identity = resolveExternalIdentity(input);
@@ -143,7 +145,12 @@ export async function ensureUnclaimedCreatorAction(input: {
 
   const token = await getConvexClerkToken("publish a reaction");
   const channelUrl =
-    channelUrlFromSource(input.url, identity.platform) ?? undefined;
+    channelUrlFromSource(input.url, identity.platform) ??
+    channelUrlFromHandle(
+      identity.platform,
+      input.authorHandle?.trim() || identity.externalHandle
+    ) ??
+    undefined;
   const { creatorId } = await fetchMutation(
     api.creators.ensureUnclaimedFromSource,
     {

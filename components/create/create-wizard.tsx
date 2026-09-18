@@ -89,6 +89,8 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { detectSource } from "@/lib/detect-source";
+import { channelUrlFromHandle } from "@/lib/creators/external-identity";
+import { normalizeCreatorKey } from "@/lib/creators/match-source";
 import { getCreator, sources } from "@/lib/data";
 import { formatDate, formatNumber } from "@/lib/format";
 import { barkTypeMeta, platformMeta } from "@/lib/meta";
@@ -281,6 +283,7 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
     null
   );
   const [showManualCreator, setShowManualCreator] = React.useState(false);
+  const [needsInstagramHandle, setNeedsInstagramHandle] = React.useState(false);
   const [manualHandle, setManualHandle] = React.useState("");
   const [manualPlatform, setManualPlatform] =
     React.useState<SourcePlatform>("youtube");
@@ -503,6 +506,9 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
     setEvidence([]);
     setEvFile(null);
     setDraftBanner(false);
+    setNeedsInstagramHandle(false);
+    setShowManualCreator(false);
+    setManualHandle("");
     toast.success("Draft discarded");
   };
 
@@ -530,11 +536,22 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
       setSource(detected.source);
       setDetectedCreator(detected.creator);
       setCreatorConfirmed(null);
-      setShowManualCreator(false);
+      const needsHandle = Boolean(detected.needsManualHandle);
+      setNeedsInstagramHandle(needsHandle);
+      setShowManualCreator(needsHandle);
+      if (needsHandle) {
+        setManualPlatform("instagram");
+        setManualHandle("");
+      }
       setStep(1);
       if (detected.detailsLimited) {
         toast.message(
           "Source identified, but the platform hid the title or image."
+        );
+      }
+      if (needsHandle) {
+        toast.message(
+          "This Instagram link did not include a creator handle. Enter it to continue."
         );
       }
     },
@@ -649,8 +666,10 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
   const creatorProfileUrl = creator?.officialLinks[0]?.url;
 
   const lookupManualCreator = async () => {
-    const handle = manualHandle.trim().toLowerCase();
-    if (!handle) {
+    const typedHandle = manualHandle.replace(/^@/, "").trim();
+    const handle = typedHandle.toLowerCase();
+    const canonicalHandle = normalizeCreatorKey(handle);
+    if (!handle || !canonicalHandle) {
       toast.error("Enter a handle to search.");
       return;
     }
@@ -658,26 +677,37 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
     try {
       const found = await getCreatorByExternalIdentityAction({
         platform: manualPlatform,
-        externalHandle: handle,
+        externalHandle: canonicalHandle,
       });
+      const profileUrl = channelUrlFromHandle(manualPlatform, typedHandle);
       if (found) {
-        setDetectedCreator(found);
-        setCreatorConfirmed(true);
-        setShowManualCreator(false);
+        setDetectedCreator({
+          ...found,
+          externalHandle: found.externalHandle ?? canonicalHandle,
+          externalPlatform: found.externalPlatform ?? manualPlatform,
+          officialLinks:
+            found.officialLinks.length > 0
+              ? found.officialLinks
+              : profileUrl
+                ? [{ label: platformMeta[manualPlatform].label, url: profileUrl }]
+                : [],
+        });
         toast.success(`Matched ${found.name}`);
       } else {
         setDetectedCreator({
-          id: `remote:${manualPlatform}:${handle}`,
-          handle,
-          name: handle,
+          id: `remote:${manualPlatform}:${canonicalHandle}`,
+          handle: typedHandle.toLowerCase() || canonicalHandle,
+          name: typedHandle || handle,
           bio: "",
           verified: false,
           hasTeaBarksProfile: false,
           status: "unclaimed",
-          externalHandle: handle,
+          externalHandle: canonicalHandle,
           externalPlatform: manualPlatform,
           platforms: [manualPlatform],
-          officialLinks: [],
+          officialLinks: profileUrl
+            ? [{ label: platformMeta[manualPlatform].label, url: profileUrl }]
+            : [],
           followers: 0,
           country: "",
           topics: [],
@@ -688,6 +718,9 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
         });
         toast.message("No existing profile — one will be created when you publish.");
       }
+      setCreatorConfirmed(true);
+      setShowManualCreator(false);
+      setNeedsInstagramHandle(false);
     } catch {
       toast.error("Could not look up that creator.");
     } finally {
@@ -704,6 +737,20 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
       toast.error("Add a title and analysis before publishing.");
       return;
     }
+    const sourceCreatorHandle = (
+      creator?.id.startsWith("remote:")
+        ? creator.handle || creator.externalHandle
+        : creator?.externalHandle || creator?.handle
+    )
+      ?.replace(/^@/, "")
+      .trim() ?? "";
+    const publishHandle =
+      sourceCreatorHandle &&
+      !["source", "instagram", "unknown", "creator"].includes(
+        sourceCreatorHandle.toLowerCase()
+      )
+        ? sourceCreatorHandle
+        : undefined;
     publishMutation.mutate({
       ...(editingCode ? { code: editingCode } : {}),
       type: barkType,
@@ -717,6 +764,7 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
       ...(isPersistedCreator && creator
         ? { sourceCreatorId: creator.id }
         : {}),
+      ...(publishHandle ? { sourceCreatorHandle: publishHandle } : {}),
       sourceThumbnailUrl: source?.thumbnailUrl,
       topics,
       ...(quotedBarkCode ? { quotedBarkCode } : {}),
@@ -904,13 +952,22 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
 
               <div className="space-y-3 rounded-lg border p-4">
                 <p className="text-sm font-medium">
-                  Is this the correct creator?
+                  {needsInstagramHandle
+                    ? "Instagram handle required"
+                    : "Is this the correct creator?"}
                 </p>
+                {needsInstagramHandle ? (
+                  <p className="text-xs text-muted-foreground">
+                    This Instagram link did not include an @handle. Enter the
+                    creator’s Instagram username to continue.
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     size="sm"
                     variant={creatorConfirmed === true ? "default" : "outline"}
+                    disabled={needsInstagramHandle}
                     onClick={() => {
                       setCreatorConfirmed(true);
                       setShowManualCreator(false);
@@ -922,58 +979,90 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
                   <Button
                     type="button"
                     size="sm"
-                    variant={creatorConfirmed === false ? "default" : "outline"}
+                    variant={
+                      creatorConfirmed === false || needsInstagramHandle
+                        ? "default"
+                        : "outline"
+                    }
                     onClick={() => {
                       setCreatorConfirmed(false);
                       setShowManualCreator(true);
-                      setDetectedCreator(null);
+                      if (!needsInstagramHandle) {
+                        setDetectedCreator(null);
+                      }
+                      if (source?.platform === "instagram") {
+                        setManualPlatform("instagram");
+                      }
                     }}
                   >
-                    No, search again
+                    {needsInstagramHandle ? "Enter handle" : "No, search again"}
                   </Button>
                 </div>
                 {showManualCreator && (
                   <div className="space-y-3 border-t pt-3">
                     <p className="text-xs text-muted-foreground">
-                      Paste another source URL above, or enter a handle manually.
+                      {needsInstagramHandle
+                        ? "Enter the Instagram username exactly as it appears on the profile."
+                        : "Paste another source URL above, or enter a handle manually."}
                     </p>
-                    <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                    <div
+                      className={cn(
+                        "grid gap-3",
+                        needsInstagramHandle
+                          ? "sm:grid-cols-[1fr_auto]"
+                          : "sm:grid-cols-[1fr_1fr_auto]"
+                      )}
+                    >
                       <Input
-                        placeholder="creator_handle"
+                        placeholder={
+                          needsInstagramHandle
+                            ? "instagram_username"
+                            : "creator_handle"
+                        }
                         value={manualHandle}
                         onChange={(e) => setManualHandle(e.target.value)}
-                      />
-                      <Select
-                        value={manualPlatform}
-                        onValueChange={(value) =>
-                          setManualPlatform(value as SourcePlatform)
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && void lookupManualCreator()
                         }
-                      >
-                        <SelectTrigger aria-label="Platform">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(
-                            [
-                              "youtube",
-                              "tiktok",
-                              "instagram",
-                              "facebook",
-                              "x",
-                              "podcast",
-                            ] as SourcePlatform[]
-                          ).map((platform) => (
-                            <SelectItem key={platform} value={platform}>
-                              {platformMeta[platform].label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        aria-label={
+                          needsInstagramHandle
+                            ? "Instagram username"
+                            : "Creator handle"
+                        }
+                      />
+                      {needsInstagramHandle ? null : (
+                        <Select
+                          value={manualPlatform}
+                          onValueChange={(value) =>
+                            setManualPlatform(value as SourcePlatform)
+                          }
+                        >
+                          <SelectTrigger aria-label="Platform">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(
+                              [
+                                "youtube",
+                                "tiktok",
+                                "instagram",
+                                "facebook",
+                                "x",
+                                "podcast",
+                              ] as SourcePlatform[]
+                            ).map((platform) => (
+                              <SelectItem key={platform} value={platform}>
+                                {platformMeta[platform].label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       <Button
                         type="button"
                         variant="secondary"
                         disabled={manualLookupLoading}
-                        onClick={lookupManualCreator}
+                        onClick={() => void lookupManualCreator()}
                       >
                         {manualLookupLoading ? (
                           <Loader2 className="size-4 animate-spin" />
@@ -1056,7 +1145,18 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
             <Button variant="outline" onClick={() => setStep(0)}>
               <ArrowLeft className="size-4" /> Different source
             </Button>
-            <Button onClick={() => setStep(2)}>
+            <Button
+              disabled={needsInstagramHandle}
+              onClick={() => {
+                if (needsInstagramHandle) {
+                  toast.error("Enter the Instagram creator handle to continue.");
+                  setShowManualCreator(true);
+                  setManualPlatform("instagram");
+                  return;
+                }
+                setStep(2);
+              }}
+            >
               Confirm source <ArrowRight className="size-4" />
             </Button>
           </div>

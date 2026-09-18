@@ -17,6 +17,8 @@ export type DetectedSource = {
   source: Source;
   creator: Creator | null;
   detailsLimited?: boolean;
+  /** Instagram media URLs often omit the username; the wizard should ask for it. */
+  needsManualHandle?: boolean;
 };
 
 function withProtocol(raw: string): string {
