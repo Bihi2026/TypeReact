@@ -6,7 +6,10 @@ import {
 } from "@/app/actions/creators";
 import { sources } from "@/lib/data";
 import { resolveExternalIdentity } from "@/lib/creators/external-identity";
-import { matchApprovedCreator } from "@/lib/creators/match-source";
+import {
+  matchApprovedCreator,
+  platformHandleFromUrl,
+} from "@/lib/creators/match-source";
 import {
   applyRemoteMeta,
   detectSource,
@@ -86,6 +89,48 @@ async function withUnclaimedCreator(
   }
 }
 
+const IG_RESERVED_PROFILE_SEGMENTS = new Set([
+  "p",
+  "reel",
+  "reels",
+  "tv",
+  "stories",
+  "explore",
+  "accounts",
+  "about",
+  "developer",
+  "legal",
+  "web",
+  "directory",
+  "instagram",
+]);
+
+function instagramUrlProfileHandle(url: string): string | undefined {
+  const parsed = parsePublicUrl(url);
+  if (!parsed) return undefined;
+  const handle = platformHandleFromUrl(parsed, "instagram");
+  if (!handle || IG_RESERVED_PROFILE_SEGMENTS.has(handle.toLowerCase())) {
+    return undefined;
+  }
+  return handle;
+}
+
+function withInstagramHandleFlag(
+  detected: DetectedSource,
+  url: string,
+  authorHandle?: string
+): DetectedSource {
+  if (detected.source.platform !== "instagram") {
+    return { ...detected, needsManualHandle: false };
+  }
+  const hasHandle = Boolean(
+    authorHandle?.trim() ||
+      detected.creator?.externalHandle?.trim() ||
+      instagramUrlProfileHandle(url)
+  );
+  return { ...detected, needsManualHandle: !hasHandle };
+}
+
 export async function analyzeSourceUrl(
   raw: string
 ): Promise<DetectedSource | null> {
@@ -102,7 +147,8 @@ export async function analyzeSourceUrl(
 
   if (!detected.source.id.startsWith("detect:")) {
     const withApproved = await withApprovedCreator(detected, sourceUrl);
-    return await withUnclaimedCreator(withApproved, sourceUrl);
+    const withUnclaimed = await withUnclaimedCreator(withApproved, sourceUrl);
+    return withInstagramHandleFlag(withUnclaimed, sourceUrl);
   }
 
   const meta = await unfurlSource(sourceUrl, detected.source.platform);
@@ -111,7 +157,8 @@ export async function analyzeSourceUrl(
       { ...detected, detailsLimited: true },
       sourceUrl
     );
-    return await withUnclaimedCreator(limited, sourceUrl);
+    const withUnclaimed = await withUnclaimedCreator(limited, sourceUrl);
+    return withInstagramHandleFlag(withUnclaimed, sourceUrl);
   }
 
   const enriched = {
@@ -124,10 +171,11 @@ export async function analyzeSourceUrl(
     meta.authorName,
     meta.authorHandle
   );
-  return await withUnclaimedCreator(
+  const withUnclaimed = await withUnclaimedCreator(
     withApproved,
     sourceUrl,
     meta.authorName,
     meta.authorHandle
   );
+  return withInstagramHandleFlag(withUnclaimed, sourceUrl, meta.authorHandle);
 }

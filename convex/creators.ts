@@ -9,6 +9,7 @@ import {
 import { clerkUserId, requireIdentity } from "./lib/auth";
 import {
   applicantMatchesCreatorIdentity,
+  normalizeCreatorKey,
   resolveExternalIdentityFromLink,
   urlsReferToSameChannel,
 } from "./lib/creator_identity";
@@ -71,30 +72,19 @@ async function applicantLinksMatchStub(
   return false;
 }
 
-function assertCanUpgradeUnclaimed(
-  stub: Doc<"creators">,
-  applicantClerkId: string
-) {
-  if (!stub.linkedByClerkId) {
-    throw new Error(
-      "This profile is not linked to a reaction yet and cannot be claimed"
-    );
-  }
-  if (stub.linkedByClerkId !== applicantClerkId) {
-    throw new Error(
-      "Only the member who linked this profile from a reaction can claim it"
-    );
+function assertCanUpgradeUnclaimed(stub: Doc<"creators">) {
+  if (stub.status !== "unclaimed") {
+    throw new Error("This profile is not available to claim");
   }
 }
 
 async function assertCanUpgradeUnclaimedWithLinks(
   ctx: MutationCtx,
   stub: Doc<"creators">,
-  applicantClerkId: string,
   platforms: Doc<"creators">["platforms"],
   officialLinks: { url: string }[]
 ) {
-  assertCanUpgradeUnclaimed(stub, applicantClerkId);
+  assertCanUpgradeUnclaimed(stub);
   if (!(await applicantLinksMatchStub(ctx, stub, platforms, officialLinks))) {
     throw new Error("Official links must match this profile's platform handle");
   }
@@ -115,12 +105,198 @@ async function findByExternalIdentity(
   externalHandle: string
 ) {
   if (!platform) return null;
-  return await ctx.db
+  const canonical = normalizeCreatorKey(externalHandle);
+  if (!canonical) return null;
+
+  const exact = await ctx.db
     .query("creators")
     .withIndex("by_external_identity", (q) =>
-      q.eq("externalPlatform", platform).eq("externalHandle", externalHandle)
+      q.eq("externalPlatform", platform).eq("externalHandle", canonical)
     )
     .unique();
+  if (exact) return exact;
+
+  const lowered = externalHandle.trim().toLowerCase().replace(/^@/, "");
+  if (lowered && lowered !== canonical) {
+    const raw = await ctx.db
+      .query("creators")
+      .withIndex("by_external_identity", (q) =>
+        q.eq("externalPlatform", platform).eq("externalHandle", lowered)
+      )
+      .unique();
+    if (raw) return raw;
+  }
+
+  const unclaimed = await ctx.db
+    .query("creators")
+    .withIndex("by_status_createdAt", (q) => q.eq("status", "unclaimed"))
+    .order("desc")
+    .take(200);
+  return (
+    unclaimed.find(
+      (row) =>
+        row.externalPlatform === platform &&
+        Boolean(row.externalHandle) &&
+        normalizeCreatorKey(row.externalHandle ?? "") === canonical
+    ) ?? null
+  );
+}
+
+async function listUnclaimedHandleVariants(
+  ctx: QueryCtx | MutationCtx,
+  survivorId: Doc<"creators">["_id"],
+  platform: Doc<"creators">["externalPlatform"],
+  canonical: string
+) {
+  if (!platform || !canonical) return [];
+  const unclaimed = await ctx.db
+    .query("creators")
+    .withIndex("by_status_createdAt", (q) => q.eq("status", "unclaimed"))
+    .order("desc")
+    .take(200);
+  return unclaimed.filter(
+    (row) =>
+      row._id !== survivorId &&
+      row.externalPlatform === platform &&
+      Boolean(row.externalHandle) &&
+      normalizeCreatorKey(row.externalHandle ?? "") === canonical
+  );
+}
+
+async function retargetCreatorReferences(
+  ctx: MutationCtx,
+  fromId: Doc<"creators">["_id"],
+  toId: Doc<"creators">["_id"]
+) {
+  for (;;) {
+    const barks = await ctx.db
+      .query("barks")
+      .withIndex("by_sourceCreator_status_publishedAt", (q) =>
+        q.eq("sourceCreatorId", fromId)
+      )
+      .take(100);
+    if (barks.length === 0) break;
+    for (const bark of barks) {
+      await ctx.db.patch(bark._id, { sourceCreatorId: toId });
+    }
+  }
+
+  for (;;) {
+    const reviews = await ctx.db
+      .query("creatorReviews")
+      .withIndex("by_creator_status_publishedAt", (q) =>
+        q.eq("creatorId", fromId)
+      )
+      .take(100);
+    if (reviews.length === 0) break;
+    for (const review of reviews) {
+      await ctx.db.patch(review._id, { creatorId: toId });
+    }
+  }
+
+  for (;;) {
+    const cases = await ctx.db
+      .query("cases")
+      .withIndex("by_creatorId_updatedAt", (q) => q.eq("creatorId", fromId))
+      .take(100);
+    if (cases.length === 0) break;
+    for (const row of cases) {
+      await ctx.db.patch(row._id, { creatorId: toId });
+    }
+  }
+
+  for (;;) {
+    const follows = await ctx.db
+      .query("creatorFollows")
+      .withIndex("by_creator_user", (q) => q.eq("creatorId", fromId))
+      .take(100);
+    if (follows.length === 0) break;
+    for (const follow of follows) {
+      const existing = await ctx.db
+        .query("creatorFollows")
+        .withIndex("by_creator_user", (q) =>
+          q.eq("creatorId", toId).eq("clerkUserId", follow.clerkUserId)
+        )
+        .unique();
+      if (existing) {
+        await ctx.db.delete(follow._id);
+      } else {
+        await ctx.db.patch(follow._id, { creatorId: toId });
+      }
+    }
+  }
+
+  const verifications = await ctx.db
+    .query("creatorVerifications")
+    .withIndex("by_creator", (q) => q.eq("creatorId", fromId))
+    .take(50);
+  for (const row of verifications) {
+    await ctx.db.delete(row._id);
+  }
+}
+
+async function absorbUnclaimedHandleVariants(
+  ctx: MutationCtx,
+  survivor: Doc<"creators">
+) {
+  if (!survivor.externalPlatform || !survivor.externalHandle) return;
+  const canonical = normalizeCreatorKey(survivor.externalHandle);
+  if (!canonical) return;
+
+  const siblings = await listUnclaimedHandleVariants(
+    ctx,
+    survivor._id,
+    survivor.externalPlatform,
+    canonical
+  );
+  if (siblings.length === 0) {
+    if (survivor.externalHandle !== canonical) {
+      const occupied = await ctx.db
+        .query("creators")
+        .withIndex("by_external_identity", (q) =>
+          q
+            .eq("externalPlatform", survivor.externalPlatform)
+            .eq("externalHandle", canonical)
+        )
+        .unique();
+      if (!occupied || occupied._id === survivor._id) {
+        await ctx.db.patch(survivor._id, {
+          externalHandle: canonical,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+    return;
+  }
+
+  let extraFollowers = 0;
+  let extraBarks = 0;
+  let extraSources = 0;
+  const officialLinks = [...survivor.officialLinks];
+
+  for (const sibling of siblings) {
+    extraFollowers += sibling.followers;
+    extraBarks += sibling.totalBarksReceived;
+    extraSources += sibling.totalSources;
+    for (const link of sibling.officialLinks) {
+      if (!officialLinks.some((item) => item.url === link.url)) {
+        officialLinks.push(link);
+      }
+    }
+    await retargetCreatorReferences(ctx, sibling._id, survivor._id);
+    await ctx.db.delete(sibling._id);
+  }
+
+  const latest = await ctx.db.get(survivor._id);
+  if (!latest) return;
+  await ctx.db.patch(survivor._id, {
+    followers: latest.followers + extraFollowers,
+    totalBarksReceived: latest.totalBarksReceived + extraBarks,
+    totalSources: latest.totalSources + extraSources,
+    officialLinks,
+    externalHandle: canonical,
+    updatedAt: Date.now(),
+  });
 }
 
 async function allocateUniqueHandle(ctx: QueryCtx | MutationCtx, baseHandle: string) {
@@ -309,10 +485,9 @@ export const apply = mutation({
       if (!stub || stub.status !== "unclaimed") {
         throw new Error("Unclaimed profile not found");
       }
-      assertCanUpgradeUnclaimedWithLinks(
+      await assertCanUpgradeUnclaimedWithLinks(
         ctx,
         stub,
-        applicantClerkId,
         args.platforms,
         filteredLinks
       );
@@ -350,6 +525,8 @@ export const apply = mutation({
         updatedAt: now,
       });
       creatorId = stub._id;
+      const upgraded = await ctx.db.get(stub._id);
+      if (upgraded) await absorbUnclaimedHandleVariants(ctx, upgraded);
     } else {
       const year = new Date().getUTCFullYear();
       applicationCode = "";
@@ -476,7 +653,7 @@ export const ensureUnclaimedFromSource = mutation({
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
     const linkedByClerkId = clerkUserId(identity);
-    const externalHandle = args.externalHandle.trim().toLowerCase();
+    const externalHandle = normalizeCreatorKey(args.externalHandle);
     if (!externalHandle) throw new Error("External handle is required");
 
     const existing = await findByExternalIdentity(
@@ -513,11 +690,25 @@ export const ensureUnclaimedFromSource = mutation({
         if (!existing.linkedByClerkId) {
           patch.linkedByClerkId = linkedByClerkId;
         }
+        if (existing.externalHandle !== externalHandle) {
+          const occupied = await ctx.db
+            .query("creators")
+            .withIndex("by_external_identity", (q) =>
+              q
+                .eq("externalPlatform", args.platform)
+                .eq("externalHandle", externalHandle)
+            )
+            .unique();
+          if (!occupied || occupied._id === existing._id) {
+            patch.externalHandle = externalHandle;
+          }
+        }
         if (Object.keys(patch).length > 1) {
           await ctx.db.patch(existing._id, patch);
         }
         return { creatorId: existing._id };
       }
+      return { creatorId: existing._id };
     }
 
     const handle = await allocateUniqueHandle(ctx, externalHandle);
@@ -582,20 +773,6 @@ export const canClaimCreator = query({
       return {
         allowed: false,
         reason: "This profile is not available to claim",
-      };
-    }
-    if (!creator.linkedByClerkId) {
-      return {
-        allowed: false,
-        reason:
-          "This profile has not been linked from a reaction yet. Publish a reaction about this creator first.",
-      };
-    }
-    if (creator.linkedByClerkId !== clerkId) {
-      return {
-        allowed: false,
-        reason:
-          "Only the member who first linked this profile from a reaction can start a claim",
       };
     }
     const existing = await ctx.db
@@ -681,6 +858,8 @@ export const approve = mutation({
       verified: true,
       updatedAt: Date.now(),
     });
+    const approved = await ctx.db.get(args.creatorId);
+    if (approved) await absorbUnclaimedHandleVariants(ctx, approved);
     await notify(ctx, {
       recipientClerkId: creator.applicantClerkId,
       category: "verification",

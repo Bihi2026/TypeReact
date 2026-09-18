@@ -21,6 +21,7 @@ export type PublishBarkInput = {
   sourcePlatform: SourcePlatform;
   sourceCreatorName: string;
   sourceCreatorId?: string;
+  sourceCreatorHandle?: string;
   sourceThumbnailUrl?: string;
   topics?: CaseCategory[];
   quotedBarkCode?: string;
@@ -45,18 +46,24 @@ export async function publishBark(input: PublishBarkInput): Promise<{ code: stri
       url: input.sourceUrl,
       platform: input.sourcePlatform,
       authorName: input.sourceCreatorName,
+      authorHandle: input.sourceCreatorHandle,
     });
     if (identity) {
       const ensured = await ensureUnclaimedCreatorAction({
         url: input.sourceUrl,
         platform: input.sourcePlatform,
         authorName: input.sourceCreatorName,
+        authorHandle: input.sourceCreatorHandle,
       });
       if (ensured) sourceCreatorId = ensured.id as Id<"creators">;
     }
   }
 
-  const { sourceCreatorId: _inputCreatorId, ...publishInput } = input;
+  const {
+    sourceCreatorId: _inputCreatorId,
+    sourceCreatorHandle: _sourceCreatorHandle,
+    ...publishInput
+  } = input;
 
   return await fetchMutation(
     api.barks.create,
@@ -168,6 +175,23 @@ export async function updateBarkDraft(
   let sourceCreatorId: Id<"creators"> | undefined = input.sourceCreatorId
     ? (input.sourceCreatorId as Id<"creators">)
     : undefined;
+  if (!sourceCreatorId && input.status === "public") {
+    const identity = resolveExternalIdentity({
+      url: input.sourceUrl,
+      platform: input.sourcePlatform,
+      authorName: input.sourceCreatorName,
+      authorHandle: input.sourceCreatorHandle,
+    });
+    if (identity) {
+      const ensured = await ensureUnclaimedCreatorAction({
+        url: input.sourceUrl,
+        platform: input.sourcePlatform,
+        authorName: input.sourceCreatorName,
+        authorHandle: input.sourceCreatorHandle,
+      });
+      if (ensured) sourceCreatorId = ensured.id as Id<"creators">;
+    }
+  }
   await fetchMutation(
     api.barks.update,
     {

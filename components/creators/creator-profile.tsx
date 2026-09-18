@@ -202,15 +202,21 @@ export function CreatorProfile({
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {claimEligibility?.allowed
-                      ? "Claim this profile to verify your identity and respond officially to reactions and cases."
+                      ? "Claim this profile to verify your identity and respond officially to reactions and cases. Close handle variants are claimed together."
                       : (claimEligibility?.reason ??
-                        "Only the member who first linked this profile by publishing a reaction can start a claim. If you are this creator, publish a reaction about your content while signed in, then return here.")}
+                        "Sign in and prove this is your official profile with a matching platform link. You only need to claim once.")}
                   </p>
                 </div>
                 {claimEligibility?.allowed ? (
                   <Button asChild size="sm" className="shrink-0">
                     <Link href={`/creators/apply?claim=${creator.id}`}>
                       Claim this profile
+                    </Link>
+                  </Button>
+                ) : !isAuthenticated ? (
+                  <Button asChild size="sm" className="shrink-0">
+                    <Link href={`/sign-in?redirect_url=/creators/${creator.handle}`}>
+                      Sign in to claim
                     </Link>
                   </Button>
                 ) : null}

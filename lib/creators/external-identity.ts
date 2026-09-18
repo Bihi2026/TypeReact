@@ -56,6 +56,29 @@ export function resolveExternalIdentity(input: {
   };
 }
 
+export function channelUrlFromHandle(
+  platform: SourcePlatform,
+  handle: string
+): string | null {
+  const clean = handle.replace(/^@/, "").trim();
+  if (!clean || BAD_EXTERNAL_HANDLES.has(clean.toLowerCase())) return null;
+
+  switch (platform) {
+    case "youtube":
+      return `https://youtube.com/@${clean}`;
+    case "tiktok":
+      return `https://tiktok.com/@${clean}`;
+    case "instagram":
+      return `https://instagram.com/${clean}`;
+    case "x":
+      return `https://x.com/${clean}`;
+    case "facebook":
+      return `https://facebook.com/${clean}`;
+    default:
+      return null;
+  }
+}
+
 export function channelUrlFromSource(
   url: string,
   platform: SourcePlatform
@@ -64,19 +87,5 @@ export function channelUrlFromSource(
   if (!parsed) return null;
   const handle = platformHandleFromUrl(parsed, platform);
   if (!handle) return null;
-
-  switch (platform) {
-    case "youtube":
-      return `https://youtube.com/@${handle}`;
-    case "tiktok":
-      return `https://tiktok.com/@${handle}`;
-    case "instagram":
-      return `https://instagram.com/${handle}`;
-    case "x":
-      return `https://x.com/${handle}`;
-    case "facebook":
-      return `https://facebook.com/${handle}`;
-    default:
-      return parsed.href;
-  }
+  return channelUrlFromHandle(platform, handle) ?? parsed.href;
 }
