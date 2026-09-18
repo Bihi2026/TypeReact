@@ -8,6 +8,7 @@ import { PWAProvider } from "@/components/pwa/pwa-provider";
 import { PWAInstallBanner } from "@/components/pwa/install-banner";
 import { PWAInstallDialog } from "@/components/pwa/install-dialog";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -129,6 +130,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                       <PWAInstallDialog />
                     </TooltipProvider>
                     <Toaster />
+                    <Analytics/>
                   </PWAProvider>
                 </AppProviders>
               </ReadingTextSizeProvider>
