@@ -738,12 +738,12 @@ export function CreateWizard({ onBack }: { onBack?: () => void } = {}) {
       return;
     }
     const sourceCreatorHandle = (
-      creator && creator.id.startsWith("remote:")
+      creator?.id.startsWith("remote:")
         ? creator.handle || creator.externalHandle
-        : creator?.externalHandle || creator?.handle || ""
+        : creator?.externalHandle || creator?.handle
     )
-      .replace(/^@/, "")
-      .trim();
+      ?.replace(/^@/, "")
+      .trim() ?? "";
     const publishHandle =
       sourceCreatorHandle &&
       !["source", "instagram", "unknown", "creator"].includes(
