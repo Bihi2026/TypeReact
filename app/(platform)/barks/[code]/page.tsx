@@ -340,7 +340,7 @@ export default async function BarkPage(props: PageProps<"/barks/[code]">) {
           <Separator className="my-10" />
 
           {/* Reply chain */}
-          <section aria-labelledby="reply-chain">
+          <section id="replies" aria-labelledby="reply-chain">
             <h2
               id="reply-chain"
               className="mb-4 flex items-center gap-2 text-lg font-semibold tracking-tight"
