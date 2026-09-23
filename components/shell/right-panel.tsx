@@ -1,11 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, TrendingUp } from "lucide-react";
+import { ArrowRight, Quote } from "lucide-react";
+import { listPublicBarks } from "@/app/actions/barks";
+import { listCases } from "@/app/actions/cases";
 import { listApprovedCreators } from "@/app/actions/creators";
-import { listCaseCategoryStats, listCases } from "@/app/actions/cases";
-import { CreatorFollowButton } from "@/components/creators/creator-actions";
-import { PersonAvatar } from "@/components/person-avatar";
-import { VerifiedBadge } from "@/components/verified-badge";
-import { Badge } from "@/components/ui/badge";
+import { HomeSignupCard } from "@/components/home/home-signup-card";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,153 +11,138 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatNumber } from "@/lib/format";
-import { caseStatusMeta } from "@/lib/meta";
-import { topics } from "@/lib/topics";
+import { formatNumber, gradientFor } from "@/lib/format";
 import { SHELL_STICKY_HEIGHT, SHELL_STICKY_TOP } from "@/lib/shell";
+import type { Bark } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export async function RightPanel() {
-  const [publishedCases, approvedCreators, categoryStats] = await Promise.all([
+export async function RightPanel({
+  published: publishedProp,
+  embedded = false,
+}: {
+  published?: Bark[];
+  embedded?: boolean;
+} = {}) {
+  const [fetchedBarks, publishedCases, approvedCreators] = await Promise.all([
+    publishedProp ? Promise.resolve(null) : listPublicBarks(),
     listCases(),
     listApprovedCreators(),
-    listCaseCategoryStats(),
   ]);
-  const bySlug = new Map(categoryStats.map((row) => [row.slug, row.caseCount]));
-  const trendingTopics = [...topics]
-    .map((topic) => ({
-      ...topic,
-      caseCount: bySlug.get(topic.slug) ?? 0,
-    }))
-    .sort(
-      (a, b) => b.caseCount - a.caseCount || a.name.localeCompare(b.name, "en")
-    )
-    .filter((t) => t.caseCount > 0)
-    .slice(0, 5);
-  const activeCases = publishedCases
-    .filter((c) => c.status === "open" || c.status === "under-review")
-    .slice(0, 3);
-  const suggestedCreators = [...approvedCreators]
-    .sort((a, b) => b.followers - a.followers)
-    .slice(0, 4);
+  const published = publishedProp ?? fetchedBarks ?? [];
+  const trending = [...published]
+    .sort((a, b) => {
+      if (b.upvotes !== a.upvotes) return b.upvotes - a.upvotes;
+      return (
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+      );
+    })
+    .slice(0, 6);
 
   return (
     <aside
-      aria-label="Trending and suggestions"
+      aria-label="Trending discussions"
       className={cn(
-        "sticky hidden w-80 shrink-0 space-y-4 overflow-y-auto p-4 xl:block",
-        SHELL_STICKY_TOP,
-        SHELL_STICKY_HEIGHT
+        "space-y-4",
+        embedded
+          ? "w-full xl:sticky xl:top-24 xl:h-[calc(100svh-6rem)] xl:overflow-y-auto xl:p-4"
+          : cn(
+              "sticky hidden w-80 shrink-0 overflow-y-auto p-4 xl:block",
+              SHELL_STICKY_TOP,
+              SHELL_STICKY_HEIGHT
+            )
       )}
     >
-      <Card className="gap-3 py-4">
+      <Card className="gap-3 rounded-2xl py-4 shadow-sm">
         <CardHeader className="px-4">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <TrendingUp className="size-4 text-primary" aria-hidden />
-            Trending Topics
-          </CardTitle>
+          <p className="mb-1 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <span className="h-px w-8 bg-primary" aria-hidden />
+            Now
+          </p>
+          <CardTitle className="text-base">Trending Discussions</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1 px-2">
-          {trendingTopics.length === 0 ? (
+        <CardContent className="space-y-1 px-3">
+          {trending.length === 0 ? (
             <p className="px-2 text-sm text-muted-foreground">
-              Topics appear as cases are opened.
+              Discussions appear as reactions are published.
             </p>
           ) : (
-            trendingTopics.map((t) => (
-              <Link
-                key={t.slug}
-                href={`/topics/${t.slug}`}
-                className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted"
-              >
-                <span className="font-medium">{t.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {formatNumber(t.caseCount)} cases
-                </span>
-              </Link>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="gap-3 py-4">
-        <CardHeader className="px-4">
-          <CardTitle className="text-sm">Active Cases</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 px-4">
-          {activeCases.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No active cases yet.
-            </p>
-          )}
-          {activeCases.map((c) => (
-            <Link key={c.id} href={`/cases/${c.code}`} className="group block">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] text-muted-foreground">
-                  {c.code}
-                </span>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] ${caseStatusMeta[c.status].badgeClass}`}
-                >
-                  {caseStatusMeta[c.status].label}
-                </Badge>
-              </div>
-              <p className="mt-1 line-clamp-2 text-sm font-medium leading-snug group-hover:text-primary transition-colors">
-                {c.title}
-              </p>
-            </Link>
-          ))}
-          <Button asChild variant="ghost" size="sm" className="w-full">
-            <Link href="/cases">
-              All cases <ArrowRight className="size-3.5" />
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="gap-3 py-4">
-        <CardHeader className="px-4">
-          <CardTitle className="text-sm">Creators on TypeReact</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 px-4">
-          {suggestedCreators.length === 0 ? (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                No approved creators yet.
-              </p>
-              <Button asChild variant="outline" size="sm" className="w-full">
-                <Link href="/creators/apply">Become a Creator</Link>
-              </Button>
-            </div>
-          ) : (
-            suggestedCreators.map((c) => (
-              <div key={c.id} className="flex items-center gap-2.5">
-                <PersonAvatar id={c.id} name={c.name} className="size-8" />
-                <div className="min-w-0 flex-1">
+            <ol className="space-y-1">
+              {trending.map((bark, index) => (
+                <li key={bark.id}>
                   <Link
-                    href={`/creators/${c.handle}`}
-                    className="flex items-center gap-1 text-sm font-medium hover:underline"
+                    href={`/barks/${bark.code}`}
+                    className="flex items-center gap-3 rounded-xl px-2 py-2 text-sm transition-all hover:-translate-y-0.5 hover:bg-muted"
                   >
-                    <span className="truncate">{c.name}</span>
-                    {c.verified && <VerifiedBadge className="size-3.5" />}
+                    <span
+                      className={cn(
+                        "relative aspect-video w-[7.5rem] shrink-0 overflow-hidden rounded-xl bg-gradient-to-br",
+                        gradientFor(bark.id)
+                      )}
+                    >
+                      {bark.sourceThumbnailUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={bark.sourceThumbnailUrl}
+                          alt=""
+                          className="absolute inset-0 size-full object-cover"
+                        />
+                      ) : null}
+                      <span className="absolute left-1.5 top-1.5 flex size-5 items-center justify-center rounded-md bg-black/65 text-[10px] font-semibold text-white">
+                        {index + 1}
+                      </span>
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-2 font-medium leading-snug">
+                        {bark.title}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {formatNumber(bark.upvotes)} reactions
+                      </span>
+                    </span>
                   </Link>
-                  <p className="text-xs text-muted-foreground">
-                    {formatNumber(c.followers)} followers
-                  </p>
-                </div>
-                <CreatorFollowButton
-                  creatorId={c.id}
-                  name={c.name}
-                  size="sm"
-                />
-              </div>
-            ))
+                </li>
+              ))}
+            </ol>
           )}
           <Button asChild variant="ghost" size="sm" className="w-full">
-            <Link href="/creators">
-              All creators <ArrowRight className="size-3.5" />
+            <Link href="/barks">
+              View all <ArrowRight className="size-3.5" />
             </Link>
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="gap-3 rounded-2xl border-primary/20 bg-primary/5 py-4 shadow-sm">
+        <CardContent className="px-4">
+          <Quote className="size-6 text-primary" aria-hidden />
+          <blockquote className="mt-2 text-[15px] font-semibold leading-relaxed tracking-tight">
+            Real change happens when real people speak up.
+          </blockquote>
+        </CardContent>
+      </Card>
+
+      <HomeSignupCard />
+
+      <Card className="rounded-2xl py-4 shadow-sm">
+        <CardContent className="grid grid-cols-3 gap-2 px-4 text-center">
+          <div>
+            <p className="text-sm font-semibold tabular-nums">
+              {formatNumber(published.length)}
+            </p>
+            <p className="text-[11px] text-muted-foreground">Reactions</p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold tabular-nums">
+              {formatNumber(publishedCases.length)}
+            </p>
+            <p className="text-[11px] text-muted-foreground">Cases</p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold tabular-nums">
+              {formatNumber(approvedCreators.length)}
+            </p>
+            <p className="text-[11px] text-muted-foreground">Creators</p>
+          </div>
         </CardContent>
       </Card>
     </aside>
