@@ -27,13 +27,13 @@ const CTA_CARDS = [
     icon: PenSquare,
     tileClass: "bg-primary text-primary-foreground",
   },
-  {
-    href: "/explore",
-    label: "Ask a Question",
-    hint: "Find open discussions",
-    icon: CircleHelp,
-    tileClass: "bg-sky-600 text-white",
-  },
+  // {
+  //   href: "/explore",
+  //   label: "Ask a Question",
+  //   hint: "Find open discussions",
+  //   icon: CircleHelp,
+  //   tileClass: "bg-sky-600 text-white",
+  // },
   {
     href: "/learn",
     label: "Learn More",
