@@ -47,27 +47,36 @@ export type AskPayload = {
   stickerId: BarkStickerId | null;
 };
 
-function postBlob(uploadUrl: string, blob: Blob, contentType: string) {
-  return fetch(uploadUrl, {
-    method: "POST",
-    credentials: "omit",
-    headers: { "Content-Type": contentType || "application/octet-stream" },
-    body: blob,
-  });
-}
-
 async function uploadBlob(
   uploadUrl: string,
   blob: Blob,
   contentType: string
 ) {
-  let response: Response;
+  const response = await fetch(uploadUrl, {
+    method: "POST",
+    headers: { "Content-Type": contentType || "application/octet-stream" },
+    body: blob,
+  });
+  if (!response.ok) throw new Error("Upload failed");
+  const json = (await response.json()) as { storageId: Id<"_storage"> };
+  return json.storageId;
+}
+
+async function uploadFile(
+  generateUploadUrl: () => Promise<string>,
+  blob: Blob,
+  contentType: string
+) {
+  const postFresh = async () => {
+    const uploadUrl = await generateUploadUrl();
+    return uploadBlob(uploadUrl, blob, contentType);
+  };
   try {
-    response = await postBlob(uploadUrl, blob, contentType);
+    return await postFresh();
   } catch (err) {
     if (!(err instanceof TypeError)) throw err;
     try {
-      response = await postBlob(uploadUrl, blob, contentType);
+      return await postFresh();
     } catch (retryErr) {
       if (retryErr instanceof TypeError) {
         throw new Error(
@@ -77,9 +86,6 @@ async function uploadBlob(
       throw retryErr;
     }
   }
-  if (!response.ok) throw new Error("Upload failed");
-  const json = (await response.json()) as { storageId: Id<"_storage"> };
-  return json.storageId;
 }
 
 export function AskEditor({
@@ -150,9 +156,8 @@ export function AskEditor({
         if (imageFile.size > MAX_IMAGE_BYTES) {
           throw new Error("Images must be 8 MB or smaller");
         }
-        const uploadUrl = await generateUploadUrl();
-        imageStorageId = await uploadBlob(
-          uploadUrl,
+        imageStorageId = await uploadFile(
+          generateUploadUrl,
           imageFile,
           imageFile.type || "image/jpeg"
         );
@@ -160,9 +165,8 @@ export function AskEditor({
       let voiceStorageId = keptVoiceId;
       let voiceDurationMs = keptVoiceMs;
       if (voice) {
-        const uploadUrl = await generateUploadUrl();
-        voiceStorageId = await uploadBlob(
-          uploadUrl,
+        voiceStorageId = await uploadFile(
+          generateUploadUrl,
           voice.blob,
           voice.contentType || "audio/webm"
         );
