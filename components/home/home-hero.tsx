@@ -80,7 +80,7 @@ export function HomeHero() {
           <h1 className="max-w-3xl text-[1.85rem] font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
             <span className="block">Evidence.</span>
             <span className="block">Discussion.</span>
-            <span className="relative inline-block pb-1 text-primary">
+            <span className="relative inline-block pb-1 text-white">
               Accountability.
               <span
                 className="absolute bottom-0 left-0 h-1 w-16 rounded-full bg-primary/80 sm:w-24"
