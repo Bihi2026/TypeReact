@@ -22,7 +22,7 @@ const descriptions: Record<NotificationCategory, string> = {
   reply: "When someone replies to your reactions or reply chains.",
   mention: "When someone mentions you with @.",
   follower: "When someone starts following you.",
-  following: "When someone you follow publishes a reaction.",
+  following: "When someone you follow publishes a reaction or asks a question.",
   "creator-response":
     "When a creator officially responds to a discussion you follow.",
   evidence: "When evidence is added or a case you follow changes status.",

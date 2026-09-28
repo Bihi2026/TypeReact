@@ -1021,3 +1021,72 @@ export const learningResourceFields = {
   updatedAt: v.number(),
   authorClerkId: v.string(),
 };
+
+export const questionFields = {
+  authorClerkId: v.string(),
+  authorName: v.string(),
+  authorImageUrl: v.optional(v.string()),
+  body: v.string(),
+  createdAt: v.number(),
+  updatedAt: v.optional(v.number()),
+  likeCount: v.number(),
+  answerCount: v.number(),
+  topic: v.optional(caseCategory),
+  sourceUrl: v.optional(v.string()),
+  imageStorageId: v.optional(v.id("_storage")),
+  voiceStorageId: v.optional(v.id("_storage")),
+  voiceDurationMs: v.optional(v.number()),
+  acceptedAnswerId: v.optional(v.id("questionAnswers")),
+};
+
+export const questionLikeFields = {
+  questionId: v.id("questions"),
+  clerkUserId: v.string(),
+  createdAt: v.number(),
+};
+
+export const questionSaveFields = {
+  questionId: v.id("questions"),
+  clerkUserId: v.string(),
+  createdAt: v.number(),
+};
+
+export const questionFollowFields = {
+  questionId: v.id("questions"),
+  clerkUserId: v.string(),
+  createdAt: v.number(),
+};
+
+export const questionAnswerFields = {
+  questionId: v.id("questions"),
+  authorClerkId: v.string(),
+  authorName: v.string(),
+  authorImageUrl: v.optional(v.string()),
+  body: v.string(),
+  createdAt: v.number(),
+  updatedAt: v.optional(v.number()),
+  likeCount: v.optional(v.number()),
+  topic: v.optional(caseCategory),
+  sourceUrl: v.optional(v.string()),
+  imageStorageId: v.optional(v.id("_storage")),
+  voiceStorageId: v.optional(v.id("_storage")),
+  voiceDurationMs: v.optional(v.number()),
+  stickerId: v.optional(barkStickerId),
+};
+
+export const questionAnswerLikeFields = {
+  answerId: v.id("questionAnswers"),
+  clerkUserId: v.string(),
+  createdAt: v.number(),
+};
+
+export const questionReportFields = {
+  questionId: v.id("questions"),
+  answerId: v.optional(v.id("questionAnswers")),
+  targetKind: v.union(v.literal("question"), v.literal("answer")),
+  category: reportCategory,
+  details: v.string(),
+  reporterClerkId: v.string(),
+  createdAt: v.number(),
+  status: v.optional(v.union(v.literal("open"), v.literal("dismissed"))),
+};

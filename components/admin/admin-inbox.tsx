@@ -26,12 +26,14 @@ const kindFilters = [
   { id: "bark", label: "Reactions" },
   { id: "case", label: "Cases" },
   { id: "story", label: "Stories" },
+  { id: "question", label: "Questions" },
 ] as const;
 
-const kindBadge: Record<"bark" | "case" | "story", string> = {
+const kindBadge: Record<"bark" | "case" | "story" | "question", string> = {
   bark: "Reaction",
   case: "Case",
   story: "Story",
+  question: "Question",
 };
 
 function relativeTime(ms: number) {
@@ -83,7 +85,7 @@ export function AdminInbox() {
           <EmptyState
             icon={Flag}
             title="No open reports"
-            description="Reaction, case, and story reports appear here until you dismiss them."
+            description="Reaction, case, story, and question reports appear here until you dismiss them."
           />
         ) : (
           <div className="min-w-0 overflow-x-auto rounded-lg border">

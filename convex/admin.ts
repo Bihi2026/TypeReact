@@ -64,7 +64,8 @@ const creatorRow = v.object({
 const reportKind = v.union(
   v.literal("bark"),
   v.literal("case"),
-  v.literal("story")
+  v.literal("story"),
+  v.literal("question")
 );
 
 const reportRow = v.object({
@@ -388,15 +389,17 @@ export const listReports = query({
   handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) return null;
 
-    const [barkReports, caseReports, storyReports] = await Promise.all([
+    const [barkReports, caseReports, storyReports, questionReports] =
+      await Promise.all([
       ctx.db.query("barkReports").order("desc").take(REPORT_SOURCE_CAP),
       ctx.db.query("caseReports").order("desc").take(REPORT_SOURCE_CAP),
       ctx.db.query("storyReports").order("desc").take(REPORT_SOURCE_CAP),
+      ctx.db.query("questionReports").order("desc").take(REPORT_SOURCE_CAP),
     ]);
 
     const rows: {
       id: string;
-      kind: "bark" | "case" | "story";
+      kind: "bark" | "case" | "story" | "question";
       target: string;
       href: string;
       category: (typeof barkReports)[number]["category"];
@@ -409,6 +412,7 @@ export const listReports = query({
     const includeBark = !args.kind || args.kind === "bark";
     const includeCase = !args.kind || args.kind === "case";
     const includeStory = !args.kind || args.kind === "story";
+    const includeQuestion = !args.kind || args.kind === "question";
 
     if (includeBark) {
       for (const report of barkReports) {
@@ -468,6 +472,23 @@ export const listReports = query({
       }
     }
 
+    if (includeQuestion) {
+      for (const report of questionReports) {
+        if (!isOpenReport(report.status)) continue;
+        rows.push({
+          id: report._id,
+          kind: "question",
+          target: report.targetKind === "answer" ? "Answer" : "Question",
+          href: "/AskQuestions",
+          category: report.category,
+          details: report.details.slice(0, 160),
+          reporterName: await displayName(ctx, report.reporterClerkId, "Member"),
+          status: "open",
+          createdAt: report.createdAt,
+        });
+      }
+    }
+
     rows.sort((a, b) => b.createdAt - a.createdAt);
     return rows.slice(0, LIST_CAP);
   },
@@ -491,6 +512,7 @@ export const queueCounts = query({
       barkReports,
       caseReports,
       storyReports,
+      questionReports,
       pendingCreators,
       pendingWriters,
       pendingStoryIdeas,
@@ -499,6 +521,7 @@ export const queueCounts = query({
       ctx.db.query("barkReports").order("desc").take(REPORT_SOURCE_CAP),
       ctx.db.query("caseReports").order("desc").take(REPORT_SOURCE_CAP),
       ctx.db.query("storyReports").order("desc").take(REPORT_SOURCE_CAP),
+      ctx.db.query("questionReports").order("desc").take(REPORT_SOURCE_CAP),
       ctx.db
         .query("creators")
         .withIndex("by_status_createdAt", (q) => q.eq("status", "pending"))
@@ -519,7 +542,8 @@ export const queueCounts = query({
     const reports =
       barkReports.filter((r) => isOpenReport(r.status)).length +
       caseReports.filter((r) => isOpenReport(r.status)).length +
-      storyReports.filter((r) => isOpenReport(r.status)).length;
+      storyReports.filter((r) => isOpenReport(r.status)).length +
+      questionReports.filter((r) => isOpenReport(r.status)).length;
     return {
       reports,
       verification: pendingCreators.length,
@@ -560,13 +584,19 @@ export const dismissReport = mutation({
       await ctx.db.patch(report._id, { status: "dismissed" });
       const accountabilityCase = await ctx.db.get(report.caseId);
       targetLabel = accountabilityCase?.code ?? "case";
-    } else {
+    } else if (args.kind === "story") {
       const report = await ctx.db.get(args.reportId as Id<"storyReports">);
       if (!report) throw new Error("Report not found");
       if (!isOpenReport(report.status)) return null;
       await ctx.db.patch(report._id, { status: "dismissed" });
       const story = await ctx.db.get(report.storyId);
       targetLabel = story?.title ?? "Story";
+    } else {
+      const report = await ctx.db.get(args.reportId as Id<"questionReports">);
+      if (!report) throw new Error("Report not found");
+      if (!isOpenReport(report.status)) return null;
+      await ctx.db.patch(report._id, { status: "dismissed" });
+      targetLabel = report.targetKind === "answer" ? "Answer" : "Question";
     }
 
     await recordModerationEvent(ctx, {

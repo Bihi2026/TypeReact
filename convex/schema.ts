@@ -55,6 +55,13 @@ import {
   moderationEventFields,
   userSettingsFields,
   learningResourceFields,
+  questionAnswerFields,
+  questionAnswerLikeFields,
+  questionFields,
+  questionFollowFields,
+  questionLikeFields,
+  questionReportFields,
+  questionSaveFields,
 } from "./lib/validators";
 
 export default defineSchema({
@@ -272,6 +279,30 @@ export default defineSchema({
   ]),
   userSettings: defineTable(userSettingsFields).index("by_user", [
     "clerkUserId",
+  ]),
+  questions: defineTable(questionFields).index("by_created", ["createdAt"]),
+  questionLikes: defineTable(questionLikeFields).index("by_question_user", [
+    "questionId",
+    "clerkUserId",
+  ]),
+  questionAnswers: defineTable(questionAnswerFields).index(
+    "by_question_created",
+    ["questionId", "createdAt"]
+  ),
+  questionSaves: defineTable(questionSaveFields).index("by_question_user", [
+    "questionId",
+    "clerkUserId",
+  ]),
+  questionFollows: defineTable(questionFollowFields).index("by_question_user", [
+    "questionId",
+    "clerkUserId",
+  ]),
+  questionAnswerLikes: defineTable(questionAnswerLikeFields).index(
+    "by_answer_user",
+    ["answerId", "clerkUserId"]
+  ),
+  questionReports: defineTable(questionReportFields).index("by_question", [
+    "questionId",
   ]),
   learningResources: defineTable(learningResourceFields)
     .index("by_slug", ["slug"])

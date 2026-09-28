@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ViewingFrom } from "@/components/country/viewing-from";
 import { CountrySelect } from "@/components/profile/country-select";
 
 export function CountryScopeBar({
@@ -15,7 +16,7 @@ export function CountryScopeBar({
       <div className="space-y-1">
         <p className="text-sm font-medium">Country</p>
         <p className="text-xs text-muted-foreground">
-          Reactions and sources shown for your selected country
+          <ViewingFrom code={value} />
         </p>
         <Link
           href="/settings/country"

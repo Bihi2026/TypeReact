@@ -29,6 +29,7 @@ import {
 import { api } from "@/convex/_generated/api";
 import { useSelectedCountry } from "@/hooks/use-selected-country";
 import { toUiBark, sortBarksByPublishedAt } from "@/lib/barks/query";
+import { ViewingFrom } from "@/components/country/viewing-from";
 import { isCountryScopeAll } from "@/lib/country-scope";
 import {
   barkMatchesHomeTopic,
@@ -166,7 +167,7 @@ export function HomePageContent({
               What&apos;s happening?
             </h2>
             <p className="text-sm text-muted-foreground">
-              Evidence-based reactions from the public square
+              <ViewingFrom code={selectedCountry} />
             </p>
           </div>
           <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">

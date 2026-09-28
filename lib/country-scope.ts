@@ -16,3 +16,10 @@ export function isValidCountryScope(code: string): boolean {
   const normalized = code.trim().toUpperCase();
   return isCountryScopeAll(normalized) || isValidCountryCode(normalized);
 }
+
+/** Sentence naming the active country scope, including the all-countries case. */
+export function viewingFromLabel(code: string, countryLabel: string): string {
+  return isCountryScopeAll(code)
+    ? "Viewing from all countries"
+    : `Viewing from ${countryLabel}`;
+}
