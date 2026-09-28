@@ -1,5 +1,5 @@
 // Service Worker for TypeReact PWA
-const CACHE_NAME = "typereact-cache-v3";
+const CACHE_NAME = "typereact-cache-v4";
 const OFFLINE_URL = "/offline";
 
 const PRECACHE_ASSETS = [
@@ -50,14 +50,15 @@ self.addEventListener("activate", (event) => {
 // Fetch Event
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  const url = new URL(request.url);
 
-  // Ignore non-GET requests
-  if (request.method !== "GET") {
+  // Leave uploads, Convex storage, and local image previews to the browser.
+  if (request.method !== "GET" || request.url.startsWith("blob:")) {
     return;
   }
 
-  // Ignore chrome extensions, Clerk auth internal endpoints, Convex backend WebSocket/HTTP mutations
+  const url = new URL(request.url);
+
+  // Ignore chrome extensions, Clerk auth, and Convex storage or mutations.
   if (
     url.protocol.startsWith("chrome-extension") ||
     url.hostname.includes("clerk") ||

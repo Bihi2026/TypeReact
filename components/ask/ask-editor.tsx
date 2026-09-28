@@ -47,16 +47,36 @@ export type AskPayload = {
   stickerId: BarkStickerId | null;
 };
 
+function postBlob(uploadUrl: string, blob: Blob, contentType: string) {
+  return fetch(uploadUrl, {
+    method: "POST",
+    credentials: "omit",
+    headers: { "Content-Type": contentType || "application/octet-stream" },
+    body: blob,
+  });
+}
+
 async function uploadBlob(
   uploadUrl: string,
   blob: Blob,
   contentType: string
 ) {
-  const response = await fetch(uploadUrl, {
-    method: "POST",
-    headers: { "Content-Type": contentType || "application/octet-stream" },
-    body: blob,
-  });
+  let response: Response;
+  try {
+    response = await postBlob(uploadUrl, blob, contentType);
+  } catch (err) {
+    if (!(err instanceof TypeError)) throw err;
+    try {
+      response = await postBlob(uploadUrl, blob, contentType);
+    } catch (retryErr) {
+      if (retryErr instanceof TypeError) {
+        throw new Error(
+          "Could not upload the file. Check your connection and try again."
+        );
+      }
+      throw retryErr;
+    }
+  }
   if (!response.ok) throw new Error("Upload failed");
   const json = (await response.json()) as { storageId: Id<"_storage"> };
   return json.storageId;
@@ -313,7 +333,7 @@ export function AskEditor({
         ) : null}
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <Button onClick={submit} disabled={!canSubmit}>
+      <Button type="button" onClick={submit} disabled={!canSubmit}>
         {pending ? "Posting…" : submitLabel}
       </Button>
     </div>
