@@ -38,6 +38,7 @@ import type * as mutes from "../mutes.js";
 import type * as notifications from "../notifications.js";
 import type * as org from "../org.js";
 import type * as profiles from "../profiles.js";
+import type * as questions from "../questions.js";
 import type * as researchCircles from "../researchCircles.js";
 import type * as saves from "../saves.js";
 import type * as stories from "../stories.js";
@@ -83,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   org: typeof org;
   profiles: typeof profiles;
+  questions: typeof questions;
   researchCircles: typeof researchCircles;
   saves: typeof saves;
   stories: typeof stories;
