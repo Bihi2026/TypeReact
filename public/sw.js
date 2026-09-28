@@ -1,5 +1,5 @@
 // Service Worker for TypeReact PWA
-const CACHE_NAME = "typereact-cache-v5";
+const CACHE_NAME = "typereact-cache-v6";
 const OFFLINE_URL = "/offline";
 
 const PRECACHE_ASSETS = [
@@ -51,25 +51,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const request = event.request;
 
-  // Local image previews stay in the page.
-  if (request.url.startsWith("blob:")) {
-    return;
-  }
-
-  // Hand Convex upload responses, including the storage id, back to the page.
-  if (request.method !== "GET") {
-    let hostname = "";
-    try {
-      hostname = new URL(request.url).hostname;
-    } catch {
-      return;
-    }
-    if (
-      hostname.includes("convex.cloud") ||
-      hostname.includes("convex.site")
-    ) {
-      event.respondWith(fetch(request));
-    }
+  // Leave local previews and uploads, including Convex storage posts, to the page.
+  if (request.url.startsWith("blob:") || request.method !== "GET") {
     return;
   }
 

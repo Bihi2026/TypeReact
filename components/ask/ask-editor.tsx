@@ -24,6 +24,8 @@ import type { CaseCategory } from "@/lib/types";
 
 const EMOJIS = ["😀", "😂", "❤️", "👍", "🔥", "💡", "❓", "👀", "👏", "🙏"];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const UPLOAD_ERROR =
+  "Could not upload the file. Check your connection and try again.";
 
 export type AskDraft = {
   body: string;
@@ -78,14 +80,49 @@ async function uploadFile(
     try {
       return await postFresh();
     } catch (retryErr) {
-      if (retryErr instanceof TypeError) {
-        throw new Error(
-          "Could not upload the file. Check your connection and try again."
-        );
-      }
+      if (retryErr instanceof TypeError) throw new Error(UPLOAD_ERROR);
       throw retryErr;
     }
   }
+}
+
+function postImage(
+  uploadUrl: string,
+  file: File,
+  onProgress: (percent: number) => void,
+  xhrRef: { current: XMLHttpRequest | null }
+) {
+  return new Promise<Id<"_storage">>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhrRef.current = xhr;
+    xhr.open("POST", uploadUrl);
+    xhr.setRequestHeader("Content-Type", file.type || "image/jpeg");
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || event.total === 0) return;
+      onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+    };
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error("Upload failed"));
+        return;
+      }
+      try {
+        const json = JSON.parse(xhr.responseText) as {
+          storageId?: Id<"_storage">;
+        };
+        if (!json.storageId) {
+          reject(new Error("Upload failed"));
+          return;
+        }
+        resolve(json.storageId);
+      } catch {
+        reject(new Error("Upload failed"));
+      }
+    };
+    xhr.onerror = () => reject(new TypeError("Failed to fetch"));
+    xhr.onabort = () => reject(new DOMException("Aborted", "AbortError"));
+    xhr.send(file);
+  });
 }
 
 export function AskEditor({
@@ -127,8 +164,12 @@ export function AskEditor({
     initial?.stickerId ?? null
   );
   const [error, setError] = React.useState<string | null>(null);
+  const [imageError, setImageError] = React.useState<string | null>(null);
+  const [imageProgress, setImageProgress] = React.useState<number | null>(null);
   const [pending, setPending] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const imageXhr = React.useRef<XMLHttpRequest | null>(null);
+  const imageGeneration = React.useRef(0);
   const [objectUrl, setObjectUrl] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -141,27 +182,84 @@ export function AskEditor({
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
 
+  React.useEffect(() => {
+    return () => {
+      imageXhr.current?.abort();
+    };
+  }, []);
+
   const imagePreview = objectUrl ?? keptImageUrl;
+  const imageWaiting = imageFile !== null && keptImageId === null;
 
   const insertEmoji = (emoji: string) => {
     setBody((current) => `${current}${emoji}`.slice(0, 2000));
+  };
+
+  const clearImage = () => {
+    imageGeneration.current += 1;
+    imageXhr.current?.abort();
+    imageXhr.current = null;
+    setImageFile(null);
+    setKeptImageId(null);
+    setKeptImageUrl(null);
+    setImageProgress(null);
+    setImageError(null);
+  };
+
+  const startImageUpload = (file: File) => {
+    const generation = ++imageGeneration.current;
+    imageXhr.current?.abort();
+    imageXhr.current = null;
+    setImageFile(file);
+    setKeptImageId(null);
+    setKeptImageUrl(null);
+    setImageError(null);
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageProgress(null);
+      setImageError("Images must be 8 MB or smaller");
+      return;
+    }
+    setImageProgress(0);
+    const report = (percent: number) => {
+      if (imageGeneration.current === generation) setImageProgress(percent);
+    };
+    const post = async (uploadUrl: string) =>
+      postImage(uploadUrl, file, report, imageXhr);
+    void (async () => {
+      try {
+        let storageId: Id<"_storage">;
+        try {
+          const uploadUrl = await generateUploadUrl();
+          if (imageGeneration.current !== generation) return;
+          storageId = await post(uploadUrl);
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          if (!(err instanceof TypeError)) throw err;
+          const uploadUrl = await generateUploadUrl();
+          if (imageGeneration.current !== generation) return;
+          storageId = await post(uploadUrl);
+        }
+        if (imageGeneration.current !== generation) return;
+        setKeptImageId(storageId);
+        setImageProgress(null);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (imageGeneration.current !== generation) return;
+        setImageProgress(null);
+        setImageError(
+          err instanceof Error && err.message !== "Failed to fetch"
+            ? err.message
+            : UPLOAD_ERROR
+        );
+      }
+    })();
   };
 
   const submit = async () => {
     setError(null);
     setPending(true);
     try {
-      let imageStorageId = keptImageId;
-      if (imageFile) {
-        if (imageFile.size > MAX_IMAGE_BYTES) {
-          throw new Error("Images must be 8 MB or smaller");
-        }
-        imageStorageId = await uploadFile(
-          generateUploadUrl,
-          imageFile,
-          imageFile.type || "image/jpeg"
-        );
-      }
+      const imageStorageId = keptImageId;
       let voiceStorageId = keptVoiceId;
       let voiceDurationMs = keptVoiceMs;
       if (voice) {
@@ -191,9 +289,10 @@ export function AskEditor({
   const hasMedia = Boolean(
     imagePreview || voice || keptVoiceUrl || (mode === "answer" && stickerId)
   );
-  const canSubmit = pending
-    ? false
-    : body.trim().length >= 10 || (body.trim().length === 0 && hasMedia);
+  const canSubmit =
+    pending || imageWaiting
+      ? false
+      : body.trim().length >= 10 || (body.trim().length === 0 && hasMedia);
 
   return (
     <div className="space-y-3">
@@ -217,16 +316,35 @@ export function AskEditor({
             alt=""
             className="max-h-48 w-full rounded-xl object-cover"
           />
+          {imageProgress !== null ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-black/50 px-4 text-white">
+              <span className="text-sm font-medium">{imageProgress}%</span>
+              <div
+                className="h-1.5 w-full overflow-hidden rounded-full bg-white/30"
+                role="progressbar"
+                aria-valuenow={imageProgress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Image upload progress"
+              >
+                <div
+                  className="h-full bg-white"
+                  style={{ width: `${imageProgress}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+          {imageError ? (
+            <p className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-xs text-white">
+              {imageError}
+            </p>
+          ) : null}
           <Button
             type="button"
             size="sm"
             variant="secondary"
             className="absolute right-2 top-2"
-            onClick={() => {
-              setImageFile(null);
-              setKeptImageId(null);
-              setKeptImageUrl(null);
-            }}
+            onClick={clearImage}
           >
             Remove
           </Button>
@@ -314,11 +432,7 @@ export function AskEditor({
           className="sr-only"
           onChange={(event) => {
             const file = event.target.files?.[0] ?? null;
-            setImageFile(file);
-            if (file) {
-              setKeptImageId(null);
-              setKeptImageUrl(null);
-            }
+            if (file) startImageUpload(file);
             event.target.value = "";
           }}
         />
