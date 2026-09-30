@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, FileCheck2, Gavel, HeartHandshake } from "lucide-react";
+import {
+  ArrowRight,
+  FileCheck2,
+  Gavel,
+  HeartHandshake,
+  Lock,
+  ScrollText,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -34,6 +41,20 @@ const policies = [
     title: "Enforcement & Appeals",
     description:
       "How reports are triaged, the ladder of consequences from warnings to bans, and how to appeal a decision.",
+  },
+  {
+    href: "/policies/privacy",
+    icon: Lock,
+    title: "Privacy Policy",
+    description:
+      "What TypeReact keeps about your account, posts, and files, and what other people can see.",
+  },
+  {
+    href: "/policies/terms",
+    icon: ScrollText,
+    title: "Terms & Conditions",
+    description:
+      "The agreement for using the public square, including what you post and how accounts can end.",
   },
 ];
 
