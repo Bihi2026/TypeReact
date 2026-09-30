@@ -30,6 +30,8 @@ const columns = [
     links: [
       { label: "About", href: "/" },
       { label: "Policies", href: "/policies" },
+      { label: "Privacy Policy", href: "/policies/privacy" },
+      { label: "Terms & Conditions", href: "/policies/terms" },
       { label: "Enforcement & Appeals", href: "/policies/enforcement" },
       { label: "Settings", href: "/settings" },
       { label: "Sign in", href: "/sign-in" },
